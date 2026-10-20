@@ -1,0 +1,4 @@
+tools/work/
+tools/todo.toml
+dist/
+*.pem
