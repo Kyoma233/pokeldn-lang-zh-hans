@@ -1,6 +1,6 @@
 id = "pokeldn-zh-hans"
 name = "简体中文"
-version = "0.37.0-zh.2"
+version = "0.37.0-zh.3"
 author = "Kyoma233"
 api = "1.9"
 locale = "zh-Hans"
