@@ -6,275 +6,252 @@ nav_order: 5
 
 # 极巨团体战
 
-本地极巨团体战是一场剑／盾会话，最多四台主机，使用 LDN 场景 60006。主机从巢穴以“邀请其他人”开启；访客在其 Y-Comm 列表中找到它，并在主机名字上选择“开始对战”加入。大厅使用可靠广播协议 0x80，战斗使用 0x7C。`bin/swsh_connect.py --preset raid` 会在主机的大厅中占一个访客席位，准备并用所选宝可梦（`--offer-file`）和招式（`--raid-move`）战斗；应用的“极巨团体战（加入）”工具会运行它。
+一条本地的极巨团体战是一场剑／盾会话，最多支持 4 个站点，位于 LDN 场景 60006。主机从一个洞穴中选择「邀请他人」打开；访客在 Y-Comm 列表中找到并点击主机名称选择「开始对战」。大厅使用可靠广播协议 0x80，战斗使用 0x7C。`bin/swsh_connect.py --preset raid` 让一个访客加入控制台大厅，准备并与选定的宝可梦（`--offer-file`）和招式（`--raid-move`）战斗；应用的「Max Raid（加入）」工具运行它。
 
 ## 网络
 
 | 字段 | 值 |
 |---|---|
-| LDN 场景 ID | 60006（旷野地带为 65535） |
-| 参与者 | 开启时为 4 人中的 1 人 |
-| 广播数据字节 `0x97` | `0x11` |
-| Pia 会话上限 | 4（`0x0110e5e0`，从巢穴大厅 `0x01031c74` 调用） |
-| 广播 `0xb0` 和 `0xd4` | 头目和巢穴记录（[巢穴记录](#the-den-record)） |
+| LDN 场景 ID | 60006（野外为 65535） |
+| 参与者 | 1/4 于开启时 |
+| 广告数据字节 `0x97` | `0x11` |
+| Pia 会话最大值 | 4 (`0x0110e5e0`，从洞穴大厅处 `0x01031c74` 调用) |
+| 广告 `0xb0` 和 `0xd4` | boss 和 den 记录（参见 [The den record](#the-den-record)） |
 
-巢穴大厅的代码位于 `0x0102aba4..0x010370cc`（`View_NestHole`、`StateGuestReady`、`StateHostReady`）。访客的 Y-Comm 列表会排除广播中带有该访客自身设备 ID 和账户 UID 的极巨团体战。
+洞穴大厅的代码位于 `0x0102aba4..0x010370cc`（`View_NestHole`、`StateGuestReady`、`StateHostReady`）。访客的 Y-Comm 列表会排除广告中包含访客自身设备 ID 和账户 UID 的极巨团体战。
 
 ## 大厅消息
 
-每条大厅消息的 id 都是 2000，`net_contents.nesthole.protocol_buffers.NestholeAsyncDataHolder`（描述符 `0x1bfde43`、`0x20677b0` 位于 `main` 中）。每个字段是一个带有一个 `bytes` 字段 1 的 holder。
+每条大厅消息的 ID 为 2000，对应 `net_contents.nesthole.protocol_buffers.NestholeAsyncDataHolder`（在 `main` 中的描述符 `0x1bfde43`、`0x20677b0`）。每个字段都是一个持有者，包含一个 `bytes` 字段 1。
 
 | 字段 | 名称 | 大小 | 内容 |
 |---|---|---|---|
-| 1 | NestholeTimeLimit | 4 | u32 剩余秒数；主机每秒发送三次 |
-| 2 | NestholePlayerInfo | 40 | 8 个零字节、u32（零售版剑为 0x11，模拟版盾为 0x12）、13 个字符的 UTF-16 名称、`00 03` |
-| 3 | NestholeBattleReady | 16 | 玩家按下准备后字节 8 为 1；战斗开始后字节 12 为 1 |
-| 4 | NestholeSelectPokemon | 352 | 8 个零字节，然后是所选宝可梦的加密队伍 PK8（0x158） |
-| 5 | NestholeBattleStart | 32 | 参与者的 Pia 常量 ID 作为四个 u64，主机的排第一，未使用槽位为零 |
-| 6 | NestholeBossPokemon | 364 | 19 个零字节和 `ff`，然后是作为加密队伍 PK8 的头目 |
-| 7 | NestholeRewards | 120 | 十五对 u32：道具 ID、数量；未使用对为零 |
-| 8 | NestholeBattleSeed | 16 | u64 种子，然后 `00 ff ff ff 1e 00 03 00` |
+| 1 | NestholeTimeLimit | 4 | u32 剩余秒数；主机每秒发送 3 次 |
+| 2 | NestholePlayerInfo | 40 | 8 个零字节，u32（0x11 零售剑，0x12 模拟盾），13 个字符的 UTF-16 名称，`00 03` |
+| 3 | NestholeBattleReady | 16 | 第 8 字节为 1 表示玩家已准备；第 12 字节为 1 表示战斗开始 |
+| 4 | NestholeSelectPokemon | 352 | 8 个零字节，随后为选定宝可梦的加密 party PK8（0x158） |
+| 5 | NestholeBattleStart | 32 | 参与者的 Pia 常量 ID 作为四个 u64，主机在前，未使用的槽位为零 |
+| 6 | NestholeBossPokemon | 364 | 19 个零字节和 `ff`，随后为 boss 的加密 party PK8 |
+| 7 | NestholeRewards | 120 | 十五对 u32：物品 ID、数量；未使用的对为零 |
+| 8 | NestholeBattleSeed | 16 | u64 seed，随后为 `00 ff ff ff 1e 00 03 00` |
 
-PlayerInfo 以 zlib 压缩、4 KB 窗口（头 `48 4b`）在可靠标志 0x10 下发出；其他消息以明文发出。`pokeldn/swsh/raid.py` 构建每个字段。头目记录包含完整头目；BattleSeed 馈入的内容未被读取（对其应用巢穴的极巨团体战生成器既得不到头目的加密常量，也得不到其 PID）。
+PlayerInfo 使用 4 KB 窗口的 zlib 压缩（标头 `48 4b`），可靠标志 0x10；其它字段原样发送。`pokeldn/swsh/raid.py` 构建所有字段。boss 记录携带完整的 boss；BattleSeed 提供的数据未被读取（对其应用 den 的极巨团体战生成器既不能得到 boss 的加密常量也不能得到其 PID）。
 
 ## 访客的流程
 
-快照交换在 0x84 上进行（主机先发送）；PlayerInfo、BattleReady 和 SelectPokemon 在 0x80 端口 0 上进行；准备就绪时发送字节 8 置位的 BattleReady。一旦所有玩家准备就绪，主机会发送 BattleStart、SelectPokemon、BossPokemon、Rewards、BattleSeed 以及字节 8 和 12 均置位的 BattleReady；访客以自己的 SelectPokemon 和相同的 BattleReady 回应，然后战斗在 0x7C 上开始（端口 0 上 ping 80，端口 1 上框架 40000，随后每回合 10000 和 20000）。在发送字节 8 置位的 BattleReady 后停止的访客会让零售版剑主机停留在“Connexion en cours”，最终报错 2-ALZAA-0016。
+在 0x84 上进行快照交换（主机在前）；PlayerInfo、BattleReady 和 SelectPokemon 在端口 0 的 0x80 上发送；BattleReady 在准备就绪时设置第 8 字节。一旦所有玩家准备就绪，主机发送 BattleStart、SelectPokemon、BossPokemon、Rewards、BattleSeed 和 BattleReady（第 8 和第 12 字节均设为 1）；访客回复其 SelectPokemon 和相同的 BattleReady，战斗在 0x7C 开始（端口 0 上 ping 为 80，框架 40000 在端口 1，然后每个回合 10000 和 20000）。访客在 BattleReady（第 8 字节设为 1）后停止，会使零售剑主机卡在「Connexion en cours」，最终报错 2-ALZAA-0016。
 
 ## 战斗
 
-战斗由主机运行；访客在 0x7C 上回应（`pokeldn/swsh/raid_battle.py`）。从 mesh 加入后，访客运行 SyncClockProtocol 0x1C（每秒一个请求）并发送一个 ClockProtocol 0x77 请求（`00` x16 然后 `00 6f`），两者都发往目标位图 1。
+主机运行战斗；访客在 0x7C 回复（`pokeldn/swsh/raid_battle.py`）。从 mesh 加入后，访客运行 SyncClockProtocol 0x1C（每秒一次请求）并发送一个 ClockProtocol 0x77 请求（`00` x16 然后 `00 6f`），两者均发往目标位图 1。
 
 | 端口 | 消息 | 访客 |
 |---|---|---|
-| 0 | 同步 80：ping、pingReply、pingSynced | 以 ping 和 pingReply 回应 ping，以 pingSynced 回应 pingSynced |
-| 1 | 40000，content 0 的框架：字段 2 base（10000 或 20000，0 时不存在）、3 主机常量 ID、4 时钟、5 消息体 | 在其 pingSynced 后发送三个 base-10000 / base-20000 对（消息体 `00000000`、`000018fc`），然后以自己的主机 ID 镜像每个主机 base-20000 消息体 |
-| 0 | 10000，字段 3 {1 主机、2 槽位、3 版本} | 一旦主机列出自己的座位后发送（base 0，16 字节消息体：常量 ID、槽位、版本字节 0x6e） |
-| 0 | 10000，字段 1 空 | 在主机 base-8 消息后发送（24 字节消息体，战斗的种子） |
-| 0 | 20000，字段 1 {1 发送者、2 槽位、3 计数器、4 数据} | 回应每条主机命令 |
-| 0 | 20000，字段 3 {1 状态、2 槽位} | 在动作前发送 {1: 2, 2: 槽位} |
+| 0 | sync 80：ping、pingReply、pingSynced | 用 ping 回答 ping，用 pingReply 回答 pingReply，用 pingSynced 回答 pingSynced |
+| 1 | 40000，content 0 的框架：字段 2 基准（10000 或 20000，0 时缺失），3 站点常量 ID，4 时钟，5 身体 | 在其 pingSynced 后发送三对基准-10000/基准-20000（身体 `00000000`、`000018fc`），然后镜像每个主机基准-20000身体在其自身站点 ID 下 |
+| 0 | 10000，字段 3 {1 站点、2 槽位、3 版本} | 当主机列出自己的座位时发送（基准 0，16 字节身体：常量 ID、槽位、版本字节 0x6e） |
+| 0 | 10000，字段 1 为空 | 在主机的基准-8 消息（24 字节身体，战斗的 seed）后发送 |
+| 0 | 20000，字段 1 {1 发送者、2 槽位、3 计数器、4 数据} | 回答每个主机命令 |
+| 0 | 20000，字段 3 {1 状态、2 槽位} | 在其动作前发送 {1: 2, 2: 槽位} |
 
-主机命令的数据以四个 u16 开头：序列号、类型、长度、一个标记。访客以相同的序列号、类型和标记回应，长度 4 和四个零字节，除了类型 0x02（状态消息，然后是它的动作：序列号、0x02、0x58、标记、88 字节）和类型 0x21（结束：发送者 1，数据 `0000 1e00 0000 2f00`）。观察到的主机类型：0x01、0x0d、0x07、0x0e、0x02、0x10、0x09（该回合的日志，zlib）、0x04、0x11、0x0a、0x21。
+主机命令的数据以四个 u16 开头：serial、type、length、tag。访客回复相同的 serial、type 和 tag，length 为 4，四个零字节，除了 type 0x02（状态消息，随后其动作：serial、0x02、0x58、tag、88 字节）和 type 0x21（结束：发送者 1，数据 `0000 1e00 0000 2f00`）。主机类型包括：0x01、0x0d、0x07、0x0e、0x02、0x10、0x09（回合日志，zlib）、0x04、0x11、0x0a、0x21。
 
-### 哪台主机作为服务器
+### 哪个站点提供服务
 
-服务器是其 ServerVersion 记录在各主机维护的表中胜出的那台主机。ServerVersion 是 `btl.net.protocol_buffers.BtlDataHolder`（id 10000）字段 3：主机 ID u64、客户端 ID u32、版本 u32（版本 `0x6e`）。八个 {主机、客户端 ID、版本、有效} 槽位位于战斗网络对象 `+0x190 + 16 * i`；`0x8b4030` 选择具有最高版本的第一个有效槽位，`0x8b1990`（IsServer）将其客户端 ID 与主机自身的客户端 ID 比较。主机的客户端 ID 是它在 BattleStart 中的位置（`0x1025120`）。进行收集的主机将这些槽位作为 40000 框架对象 0 到 7 发布。
+服务器是每个控制台保留的 ServerVersion 记录获胜的站点。ServerVersion 是 `btl.net.protocol_buffers.BtlDataHolder`（id 10000）字段 3：站点 ID u64、客户端 ID u32、版本 u32（版本 `0x6e`）。八个 {站点、客户端 ID、版本、有效} 槽位位于战斗网络对象 `+0x190 + 16 * i`；`0x8b4030` 选择第一个有效槽位中版本最高的，`0x8b1990`（IsServer）比较其客户端 ID 与控制台自身。控制台的客户端 ID 是其在 BattleStart 中的位置（`0x1025120`）。提供服务的站点将槽位发布为 40000 框架对象 0 至 7。
 
 ### 动作
 
-88 字节的动作是十一个 8 字节条目。条目 2 作为小端 u24 为 `move id << 13 | target << 8 | 0xc1`。
+88 字节的动作是十一个 8 字节条目。条目 2 作为小端 u24 是 `move id << 13 | target << 8 | 0xc1`。
 
-| 招式 | entry 2 | 目标 |
+| 招式 | 条目 2 | 目标 |
 |---|---|---|
-| 拍击（1） | `c1 28 00` | 8 |
-| 绑紧（20） | `c1 88 02` | 8 |
-| 叫声（45） | `c1 a2 05` | 2 |
-| 水枪（55） | `c1 e8 06` | 8 |
+| 磨牙 (1) | `c1 28 00` | 8 |
+| 缠住 (20) | `c1 88 02` | 8 |
+| 生气 (45) | `c1 a2 05` | 2 |
+| 水枪 (55) | `c1 e8 06` | 8 |
 
-叫声命中所有对手并携带目标 2；单体招式携带 8。访客无法行动的回合会将条目 2 设为零。`raid_battle.action(move, target)` 构建它；`--raid-move N` 选择招式槽位。0x7C 确认携带 32 个槽位；只有槽位 0 跟踪访客的流，因此以所有槽位最大值作为条件的重发永远不会触发。
+生气击中所有敌方并携带目标 2；单目标招式携带 8。访客无法行动的回合会发送条目 2 为零。`raid_battle.action(move, target)` 构建它；`--raid-move N` 选择招式槽位。0x7C 确认携带 32 个槽位；只有槽位 0 跟踪访客的流，因此基于最大槽位的重发从不重发。
 
-## 巢穴记录
+## den 记录
 
-巢穴主机的广播描述其极巨团体战；访客的 Y-Comm 条目构建器（`0x00fa1560`）读取它。
+den 主机的广告描述其极巨团体战；访客的 Y-Comm 条目构建器（`0x00fa1560`）读取它。
 
 | 偏移 | 内容 |
 |---|---|
-| `0x5F` 位 1 | 主机版本：清零为剑，置位为盾 |
-| `0xAF` | 活动类型：0 级时为 `0x11`，更高级为 `0x13 + 2 (rank - 1)`；`0xFF` 永远不会列出 |
-| `0xB0` | 显示的头目：u16 物种（位 0 到 9）和形态（10 到 15）、一个字节（位 4 和 5 为 1 普通，2 超极巨化）、u32 加密常量 |
-| `0xD4` | 巢穴记录，同样的 8 字节布局 |
-| `0xDC` | 高半字节：星数等级，0 到 4 |
-| `0xDD` | 位 3 到 5：巢穴类型，0 表示普通巢穴 |
-| `0xDE`、`0xE0` | u16 遇敌表（按主机版本的表计数）和 u16 槽位 |
-| `0xE6` 到 `0xED` | `bin/archive/field/resident/data_table.gfpak` 中文件 8、6、7 和 9 的 CRC16 |
+| `0x5F` 位 1 | 主机版本：清除 Sword，设置 Shield |
+| `0xAF` | 活动类型：等级 0 时为 `0x11`，等级 1 以上为 `0x13 + 2 (rank - 1)`；`0xFF` 永远不列出 |
+| `0xB0` | 显示的 boss：u16 种属（位 0 至 9）和形态（位 10 至 15），一个字节其第 4 和第 5 位为 1 正常，2 超极巨化，u32 加密常量 |
+| `0xD4` | den 记录，相同的八字节布局 |
+| `0xDC` | 高半字节：星级排名，0 至 4 |
+| `0xDD` | 位 3 至 5：den 类型，0 为普通 den |
+| `0xDE`、`0xE0` | u16 遇见表，计入主机版本的表中，u16 槽位 |
+| `0xE6` 至 `0xED` | `bin/archive/field/resident/data_table.gfpak` 中文件 8、6、7、9 的 CRC16 |
 
-当 `0xD4` 处的物种非零时，访客只有在自身表 CRC 匹配、巢穴类型为 0，并且主机版本表 `0xDE` 槽位 `0xE0` 中具有该物种、形态和超极巨化标志（`0x00ea5160`）时才会列出该极巨团体战。物种为 0 会跳过这些检查。当 `0x02510b2c` 处的字节为 1 或 2 且主机不是好友时，等级不得超过访客自身由徽章数决定的等级。`0xB0` 处的记录仅做范围检查。访客会忽略设备 ID 和账户 UID（`0x1F` 到 `0x3E`）都与自身（`0x0111b160`）相同的主机。`pokeldn/swsh/data/nest_slots.json` 保存 1.3.2 槽位（`scripts/gen_swsh_nest_data.py`）；`raid.den_advert` 将巢穴记录指向包含头目的槽位，或将其清零。
+当 `0xD4` 处的种属非零时，访客仅在其自身的表 CRC 匹配、den 类型为 0、主机版本的表 `0xDE` 槽位 `0xE0` 包含该种属、形态和超极巨化标志（`0x00ea5160`）时才列出极巨团体战。种属为 0 时跳过这些检查。排名不能超过访客自身的排名（来自徽章数量），当 `0x02510b2c` 处的字节为 1 或 2 且主机不是好友时。`0xB0` 处的记录仅进行范围检查。访客会丢弃设备 ID 和账户 UID（`0x1F` 至 `0x3E`）同时等于自身的站点（`0x0111b160`）。`pokeldn/swsh/data/nest_slots.json` 保存 1.3.2 的槽位（`scripts/gen_swsh_nest_data.py`）；`raid.den_advert` 将 den 记录指向包含 boss 的槽位，或将其清零。
 
-### 头目记录
+### boss 记录
 
-访客在发送其已开始的 BattleReady 之前检查 BossPokemon 和 Rewards（`0x01030d14`）；检查失败会以 2-ALZAA-0016 离开。
+访客在发送已开始的 BattleReady 之前检查 BossPokemon 和 Rewards（`0x01030d14`）；检查失败会导致 2-ALZAA-0016。
 
 | 检查 | 代码 | 通过条件 |
 |---|---|---|
-| 头目 | `0x01032270` | 物种、形态和队伍 `+0x156`（1 普通，2 超极巨化）等于巢穴记录所指定的条目：类型 0 为所广播版本的基础表 `0xDE` 槽位 `0xE0`；类型 1 到 3 为访客自己保存的事件遇敌记录，槽位 `0xE0`；类型 4 为其保存的结晶遇敌记录 |
-| 奖励 | `0x01032570` | 每个带有道具和数量的对都必须是指定等级下该槽位奖励表中恰好为该数量的奖励行，或者是该等级有概率掉落的掉落表道具（数量不限） |
+| boss | `0x01032270` | 种属、形态和 party `+0x156`（1 正常，2 超极巨化）等于 den 记录命名的条目：类型 0 为基础表 `0xDE`，广告版本的槽位 `0xE0`；类型 1 至 3 为访客自身保存的事件遇见，槽位 `0xE0`；类型 4 为其保存的水晶遇见 |
+| rewards | `0x01032570` | 每对带有物品和数量的都是槽位奖励表在广告排名下恰好其数量的奖励行，或是 drop 表中物品以该排名有概率（数量自由） |
 
-等级、招式、个体值、PID、特性、异色和训练家字段不会被比较。零巢穴记录表示类型 0、表 0、槽位 0（无畏小子）。在零售版剑访客上观察到：带训练家数据的头目记录、队伍极巨化类型为 0，或为基础巢穴中不存在的头目（梦幻、活动中的超极巨化颤弦蝾螈）使用零巢穴记录，虽然极巨团体战会被列出，但会以 2-ALZAA-0016 离开；只改了物种的巢穴头目记录，以及由 `raid.boss_record` 构建的头目，则会被接受。基础巢穴中没有传说或幻之宝可梦，因此主持的头目是 `nest_slots.json` 中列出的物种、形态和超极巨化状态；`raid.den_advert` 会在只有另一个版本持有该头目时切换广播版本，并将活动头目显示为基础巢穴中持有该物种的槽位。`raid.reward_choices` 列出某等级下槽位允许的内容；`raid.den_rewards` 构建槽位自身的行。
+等级、招式、IV、PID、能力、异色和训练师字段不进行比较。零 den 记录命名类型 0，表 0，槽位 0（Tyrogue）。在零售剑访客上观察到：带有训练师数据的 boss 记录、party 极巨化类型为 0，或是零 den 记录用于 boss 基础 den 不持有的 boss（Mew、事件的超极巨化 Toxtricity）会导致 2-ALZAA-0016，尽管极巨团体战已被列出；仅更改种属的 den boss 记录和由 `raid.boss_record` 构建的 boss 会被接受。基础 den 不持有任何传说或神话宝可梦，因此主办的 boss 是 `nest_slots.json` 列出的种属、形态和超极巨化状态；`raid.den_advert` 在仅另一方持有 boss 时切换广告版本，并将事件 boss 显示为持有其种属的基础 den 槽位。`raid.reward_choices` 列出槽位在某个排名下允许的内容；`raid.den_rewards` 构建槽位自己的行。
 
-在巢穴头目中，队伍 HP 能力值和当前 HP 是普通 HP 能力值乘以 `(150 + 5 * Dynamax level) / 100`，向下取整；其他能力值为普通值。极巨化等级位于 `+0x90`，特性槽位在 `+0x16` 的位 0 到 2，经验值为该等级的最小值。
+在 den boss 中，party HP 统计和当前 HP 是普通 HP 统计乘以 `(150 + 5 * Dynamax 等级) / 100`，向下取整；其他统计为普通值。Dynamax 等级位于 `+0x90`，能力槽位比特位于 `+0x16` 位 0 至 2，经验值是等级的最低位。
 
-## 托管
+## Hosting
 
-`bin/swsh_host.py --raid-boss PK8 --raid-console-serves` 托管一个巢穴大厅，游戏机从其
-Y-Comm 列表加入（`pokeldn/swsh/raid_host.py`）。广告和快照是一个模拟的盾版巢穴
-主机的，带有全新站点资料、公告板名称且无账号 ID
-（`pokeldn/swsh/data/raid_advert.bin`、`raid_snapshot.bin`；`--advert` 和 `--snapshot` 可替换
-它们）。`--raid-boss` 通过 `raid.boss_record` 接受任意 PK8。主机的快照在客人的快照之前发出。
-`--raid-reward ITEM:COUNT` 填充奖励，`--raid-seed` 填充 BattleSeed；如果广告的巢穴槽位在该等级
-不提供某行，主机会拒绝该行并打印该槽位实际提供的内容。
+`bin/swsh_host.py --raid-boss PK8 --raid-console-serves` 主持一个宝可梦盾版.den 房间，由控制台从其 Y-Comm 列表加入 (`pokeldn/swsh/raid_host.py`)。广告和快照是模拟的盾版.den 主机的，带有全新的站点配置文件、团体名称和无账户 ID (`pokeldn/swsh/data/raid_advert.bin`, `raid_snapshot.bin`; `--advert` 和 `--snapshot` 替换它们)。`--raid-boss` 接受任意 PK8 并传入 `raid.boss_record`。主机的快照在客机之前发出。`--raid-reward ITEM:COUNT` 填充 Rewards，`--raid-seed` 填充 BattleSeed；主机拒绝广告.den 插槽在其等级下不提供的行，并打印该插槽提供的内容。
 
-应用程序的极巨团体战（主机）工具使用这些标志，配合一个头目（或基础巢穴持有的旷野地带活动头目，
-`raid_event.hostable`）、玩家的宝可梦以及最多 15 行奖励；没有行时，主机会给予巢穴槽位自身的奖励。
-其奖励编辑器只提供头目被广告来源的巢穴槽位的物品（`raid.boss_den`、
-`pokeldn.app.raid_rewards.swsh_den`），并固定奖励物品的数量。
+该应用的 Max Raid (Host) 工具使用这些标志配合一个 boss（或基础.den 所持的 Wild Area Event boss，`raid_event.hostable`），玩家的宝可梦和最多 15 个奖励行；若无行，则主机提供.den 插槽自己的奖励。其奖励编辑器仅提供 boss 所广告.den 插槽的物品 (`raid.boss_den`, `pokeldn.app.raid_rewards.swsh_den`)，并固定 bonus 物品的数量。
 
-使用 `--raid-console-serves` 时，加入的游戏机主持对战，主机作为客户端 1 应答
-（`raid_battle.Master`）：
+使用 `--raid-console-serves` 时，加入的控制台承担战斗，主机作为客户端 1 应答 (`raid_battle.Master`)：
 
 | step | the host |
 |---|---|
-| BattleStart | 先列出游戏机，所以游戏机的客户端 ID 为 0 |
-| 0x7C port 0 | 发送 ping；应答游戏机的 ping 和 pingSynced |
-| framework objects | 发布对象 0 = 游戏机的 ServerVersion 记录，对象 1 = 自己的记录 |
-| 0x7C port 0 | 发送自己的 ServerVersion（客户端 ID 1） |
-| base 20000 | 发布计数器和自己的身体，0000 / 00000100，然后 0100 / 01000100、01000200、0200 / 02000200，每次在游戏机镜像了上一个身体后发送 |
-| object 8 | 游戏机发布它（24 字节，一个种子）；主机应答 EmptyCommand（10000 字段 1） |
-| battle commands | 像客人一样应答，动作命名为主机的宝可梦的第一个招式 |
+| BattleStart | lists the console first, so the console's client id is 0 |
+| 0x7C port 0 | sends ping; answers the console's ping and pingSynced |
+| framework objects | publishes object 0 = the console's ServerVersion record, object 1 = its own |
+| 0x7C port 0 | sends its own ServerVersion (client id 1) |
+| base 20000 | publishes the counter and its own body, 0000 / 00000100, then 0100 / 01000100, 01000200, 0200 / 02000200, each once the console mirrors the last body |
+| object 8 | the console publish it (24 bytes, a seed); the host answers EmptyCommand (10000 field 1) |
+| battle commands | answered as a guest answers them, the action naming the host's Pokemon's first move |
 
-一台零售版《剑》以这种方式主持了一整场极巨团体战，获胜并收到了主机的奖励，然后发送了
-网状网络离开请求。
+一位零售剑版通过这种方式完成了整个团体战，赢得了胜利并收到了主机的 Rewards，然后发送了 mesh 离开请求。
 
-### 多台游戏机
+我们自己的记录以版本 `0x6d` 发出，低于控制台的 `0x6e`，因此控制台的记录是无论每个插槽最终落在哪里，唯一一个最高版本的记录。在 LAN 模式下，零售剑版将 session 主机的记录存入插槽 0（主机的 Pia 站点索引），因此在版本相同时，它选择了我们的主机，发布了我们的记录作为 object 0，发送了 EmptyCommand 并在黑屏上等待一个从未开始的服务器；在 `0x6d` 时，它承担了战斗并加载了画面。
 
-最多三台游戏机共享一个托管大厅（`raid_host.RaidParty`）。每台加入的游戏机就绪后，主机开始
-对战；BattleStart 按加入顺序列出游戏机，然后是主机。第一台游戏机主持。主机将框架对象 k
-发布为游戏机 k 的 ServerVersion 记录，自己的记录最后发布，并在每台游戏机镜像其身体后推进
-base-20000 屏障。
+### Several consoles
 
-第二台游戏机需要从 Pia 主机获得：传递给它的会话更新（在回环上每个站点获取自己的副本）；
-mesh 加入响应字节 8，即活动站点上限，要高于已经入座的站点（否则结果 1 和错误
-2618-0502）；以及在发送方流的端口上的确认（主机 0、第一个加入者 1、第二个加入者 2），
-因为未确认的流会无限重复。
+最多三台控制台共享一个主持的房间 (`raid_host.RaidParty`)。主机在所有加入的控制台准备就绪后开始战斗；BattleStart 按加入顺序列出控制台，然后是主机。第一台控制台承担战斗。主机发布 framework object k 作为第 k 台控制台的 ServerVersion 记录及其自己的最后一条记录，并在每台控制台镜像其 body 后推进 base-20000 屏障。
 
-客人们直接相互连接：站点连接请求、在 0x84 上相互的快照，以及在 0x80 上发给主机和
-另一个客人的大厅消息。
+第二台控制台需要从 Pia 主机处获取：发送给它的 session 更新（在 loopback 上每个站点都有自己的副本）；mesh 加入响应字节 8，active station 最大值，超过已坐下的站点（否则返回结果 1 和错误 2618-0502）；以及发送者 stream 端口上的 ack（主机为 0，第一位加入者为 1，第二位为 2），因为未被确认的 stream 会无休止重复。
 
-## 活动极巨团体战
+客机之间直接连接：站点连接请求、彼此的快照在 0x84 上，以及 0x80 上的 lobby 消息，分别发给主机和另一位客机。
 
-旷野地带活动是一次 BCAT 分发，包含巢穴遭遇和奖励表，每次分发有一个编号索引。Project
-Pokemon 的 EventsGallery 将每个活动保存在
-`Released/Gen 8/SwSh/Wild Area Events/Index NNN/` 下。`pokeldn/swsh/raid_event.py` 读取其中一个；
-`pokeldn.app.events_gallery` 在 game `swsh` 下保存一份副本。
+## Event raids
+
+Wild Area Event 是一次 BCAT 递送，包含.den 遭遇和奖励表，每次递送有一个编号索引。Project Pokemon 的 EventsGallery 将每个事件保存在 `Released/Gen 8/SwSh/Wild Area Events/Index NNN/` 下。`pokeldn/swsh/raid_event.py` 读取其中一个；`pokeldn.app.events_gallery` 在游戏 `swsh` 下保留一份副本。
 
 | file | content |
 |---|---|
-| `normal_encount` | 旷野地带各巢穴的活动遭遇 |
-| `normal_encount_rigel1`, `normal_encount_rigel2` | 铠岛和王冠雪原的（在索引 080 和 117 中，不在 010 中） |
-| `drop_rewards`, `bonus_rewards` | 分发的奖励表 |
-| `dai_encount` | 极巨化水晶遭遇 [pkNX `NestHoleCrystalEncounterArchive`]；未读取 |
+| `normal_encount` | the Wild Area dens' event encounters |
+| `normal_encount_rigel1`, `normal_encount_rigel2` | the Isle of Armor's and the Crown Tundra's (in Index 080 and 117, not in 010) |
+| `drop_rewards`, `bonus_rewards` | the delivery's reward tables |
+| `dai_encount` | the Dynamax crystal encounters [pkNX `NestHoleCrystalEncounterArchive`]; unread |
 
-每个文件以 0x20 字节的头部开始：偏移 0 处是 u8 BCAT 索引，偏移 4 处是 `ff ff ff ff`，偏移 8 处
-是 u32 `0x20`，偏移 `0x10` 处是 u32 文件大小减 4。FlatBuffer 从 `0x20` 一直延伸到文件末尾前四个
-字节，那里保存着 CRC [pkNX `GameDumperSWSH.GetDistributionContents`]。
+每个文件以 0x20 字节的 header 开头：0 偏移处为 u8 BCAT 索引；4 偏移处为 `ff ff ff ff`；8 偏移处为 u32 `0x20`；`0x10` 偏移处为 u32 文件大小减 4。FlatBuffer 从 `0x20` 运行到末尾前四个字节，后者保存 CRC [pkNX `GameDumperSWSH.GetDistributionContents`]。
 
-遭遇文件是表的向量（字段 0）：TableID u64、GameVersion u32（1 为剑，2 为盾）和 Entries
-（字段 4）。条目字段：0 索引；1、2、3 为物种、形态、等级；4 为极巨化等级；11 为特性
-（0、1、2 分别为第一、第二、隐藏特性；3 为前两种之一；4 为任意）；12 为超极巨化；13、14 为
-掉落和奖励表 ID（u64）；15 为五个等级的概率百分比（每个版本每个等级总和为 100）；16 为性别
-（0 为随机，否则为性别 + 1）；17 为完美个体值数量；18 为异色（0 为随机，1 为从不，2 为必定）；
-21 为性格（25 为随机）；23 到 26 为四个招式；30 为护盾，31 到 36 为两个额外招式，按
-PyNXBot 的模式。
+遭遇文件是一组表的向量（字段 0）：TableID u64，GameVersion u32（1 Sword，2 Shield）和 Entries（字段 4）。Entry 字段：0 索引；1、2、3 种属、形态、等级；4 Dynamax 等级；11 能力（0、1、2 第一、第二、隐藏；3 第一或第二个；4 任意）；12 Gigantamax；13、14 drop 和 bonus 表 ID（u64）；15 五个 rank 概率（百分比，每 version 各 rank 总和为 100）；16 性别（0 随机，否则性别 + 1）；17 完美 IV 数量；18 shiny（0 随机，1 从不，2 总是）；21 性格（25 随机）；23 至 26 四个招式；30 shield 和 31 至 36 两个额外招式，按 PyNXBot 的 schema。
 
-其他字段未读取。索引 010 解码为旷野地带活动 #7：在等级 3 至 5 出现超极巨化颤弦蝾螈，
-每个等级都有超极巨化霜奶仙，剑版有巨钳蟹和长毛巨魔，盾版有以欧路普和布莉姆温；
-其等级 5 的颤弦蝾螈等于 PKHeX 的 `encounter_sw_dist.pkl` 中索引 10 的记录。
+其他字段未被读取。Index 010 解码为 Wild Area Event #7：rank 3 至 5 的 Gigantamax Toxtricity，各 rank 的 Gigantamax Milcery，剑版的 Kingler 和 Grimmsnarl，盾版的 Orbeetle 和 Hatterene；其 rank-5 Toxtricity 等于 PKHeX 的 `encounter_sw_dist.pkl` 中 index 10 的记录。
 
-分发奖励文件是表的向量（字段 0）：TableID u64 和 Entries（字段 1），每个条目为等级 1 至 5 的
-五个 u8 值（字段 0 到 4）和一个 u16 道具（字段 5）。游戏自身的表，
-`data_table.gfpak` 文件 7（掉落）和 6（奖励），保存 TableID，然后是 u32 条目索引、u32 道具和
-五个值的 u32 向量（`pokeldn/swsh/data/nest_rewards.json`、
-`scripts/gen_swsh_nest_data.py`）。遭遇通过 ID 在这两类表中命名其表，游戏优先使用
-[pkNX `NestHoleDistributionEncounterTable`]。奖励值是一个数量，掉落值是一个百分比概率。
-1 星巢穴的奖励（`raid.DEN_REWARDS`）以奖励表 `0xf966212316b78eb6` 在等级 1 按其数量提供的行
-开始（经验糖果 XS x5、经验糖果 S x1、极巨糖果 x1），然后是两件道具，各一行。
-`raid_event.rewards` 构建奖励行，然后为每个掉落构建一行，掷出每个掉落的概率或全部保留。
+递送奖励文件是一组表的向量（字段 0）：TableID u64 和 Entries（字段 1），每个 entry 包含五个 u8 值代表 rank 1 至 5（字段 0 至 4）和一个 u16 物品（字段 5）。游戏自己的表，`data_table.gfpak` 文件 7（drops）和 6（bonus），保存 TableID，随后是 u32 entry 索引、u32 物品和 u32 五个值的向量 (`pokeldn/swsh/data/nest_rewards.json`, `scripts/gen_swsh_nest_data.py`)。遭遇通过 id 命名其表，在两者之间，游戏的第一个 [pkNX `NestHoleDistributionEncounterTable`]。bonus 值为数量，drop 值为概率。1-star.den 的 Rewards (`raid.DEN_REWARDS`) 以 rank 1 的 bonus 表 `0xf966212316b78eb6` 的行作为开头，按数量（Exp. Candy XS x5，S x1，Dynamax Candy x1），然后是两个物品，各一个。`raid_event.rewards` 构建 bonus 行，然后每 drop 一行，滚动每个 drop 的概率或保留全部。
 
-`raid_event.boss_pk8` 在 `raid.boss_record` 上构建头目：表的物种、形态、等级、招式、超极巨化和
-极巨化等级，以及表允许的特性、个体值、性格、性别和 PID，使用来自
-`pokeldn/swsh/data/species.json` 的队伍属性（`scripts/gen_swsh_species_data.py`）。
+`raid_event.boss_pk8` 在 `raid.boss_record` 上构建 boss：表中的种属、形态、等级、招式、Gigantamax 和 Dynamax 等级，以及表允许的能力、IVs、性格、性别和 PID，party 统计来自 `pokeldn/swsh/data/species.json` (`scripts/gen_swsh_species_data.py`)。
 
     bin/swsh_host.py --raid-event "FOLDER/Index 010" --raid-stars 5 --raid-event-boss 4 --raid-console-serves
 
-如果没有 `--raid-stars` 或 `--raid-event-boss`，主机会列出它接受的参数。`--raid-version` 选择
-表的版本（默认是广告的版本），`--raid-area` 选择巢穴区域，`--raid-event-drops all` 选择所有
-掉落；`--raid-reward` 行替换活动的奖励。
+若不带 `--raid-stars` 或 `--raid-event-boss`，主机会列出它需要的内容。`--raid-version` 选择表的版本（默认为广告的版本），`--raid-area` 选择.den 区域，`--raid-event-drops all` 选择所有 drop；`--raid-reward` 行替换 event 的奖励。
 
 ## 极巨大冒险
 
-极巨大冒险（Max Lair，二进制中为 `chika`）通过本地通信匹配，当每位玩家在极巨巢穴选择“邀请其他人”时：第一个玩家开启网络，其他人扫描并连接。Y-Comm 从不列出它：主机宣告的活动类型为 0xFF。网络携带本地通信 ID `0x0100abf008968000`，场景 50000，NodeCountMax 4（Pia 最大值，从 `0x00bd9b30` 调用，位于 `ChikaMatchingState*` `0x00bd1978..0x00bda158`）。主机在“通信中”倒计时 3:00；没有来宾时会取消冒险。冒险开始后，电脑伙伴填满空位。
+一次极巨大冒险（Max Lair，二进制文件中称为 `chika`）通过本地通信匹配，当每个玩家都选择在 Max Lair 邀请他人时：第一个玩家打开网络，其他玩家扫描并连接。Y-Comm 永远不会列出它：主机广告活动类型为 0xFF。该网络使用本地通信 id `0x0100abf008968000`，场景 50000，最大节点数 4（Pia 最大值从 `0x00bd9b30` 调用，在 `ChikaMatchingState*` `0x00bd1978..0x00bda158` 中）。主机从 3:00 开始倒计时，显示为“通讯中”；如果没有客人加入，则取消冒险。冒险开始后，电脑伙伴填充空位。
 
-两个消息持有者运行在可靠 0x80 端口 0 上，每个字段是一个含有一个字段 1 的持有者：
+在可靠端口 0 的 0x80 端口上运行两个消息持有者，每个字段都是一个持有一个字段 1 的持有者：
 
-- id 7000，`net_contents.chika.protocol_buffers.ChikaAsyncDataHolder`（描述符 `0x1c3adb5`、`0x2066654`），即大厅；
-- id 8000，`net_contents.underground.protocol_buffers.UndergroundAsyncDataHolder`（描述符 `0x1c36fab`、`0x20681cc`），用于战斗之间。
+- id 7000，`net_contents.chika.protocol_buffers.ChikaAsyncDataHolder`（描述符 `0x1c3adb5`，`0x2066654`），为大厅；
+- id 8000，`net_contents.underground.protocol_buffers.UndergroundAsyncDataHolder`（描述符 `0x1c36fab`，`0x20681cc`），用于战斗之间。
 
-发送到极巨巢穴大厅的巢穴消息（id 2000）会被确认，但不会让任何人入座。战斗在 0x7C 上运行，方式与极巨团体战的巢穴一致，但有两个区别：
+发送到 Max Lair 大厅的 Den 消息（id 2000）会被确认但无法入座。战斗运行在 0x7C 端口上，与 Den 团体战相同，但有两个区别：
 
-- 动作是条目 1 `01 ff ff ff ff ff ff ff`，条目 2 为与巢穴战斗相同的招式，其余九个条目为 `0xff`；在极巨化回合，条目 2 的字节 3 为 `0x80`，并且其前的状态消息携带状态 1 而非 2；
-- 来宾的宝可梦昏厥后，主机发送类型 0x04，数据为 `01 00 ff ff ff ff`；来宾回复一个 88 字节的动作，其条目 2 为零。
+- 操作为条目 1 `01 ff ff ff ff ff ff ff`，条目 2 为移动，与 Den 团体战中的移动相同，其他九个条目为 `0xff`；条目 2 的第 3 字节在极巨回合中为 `0x80`，并且在此之前的状态消息则携带状态 1 而非 2；
+- 在客人宝可梦昏厥后，主机发送类型 0x04，数据为 `01 00 ff ff ff ff`；客人回复一个 88 字节的操作，其中条目 2 为零。
 
-`pokeldn/swsh/lair.py` 是这两个持有者的来宾侧；`bin/swsh_connect.py --preset lair`（应用中的极巨大冒险（加入））以玩家 1 入座，并取主机留下的第一个提供位置（租用按回合进行，主机优先）。由 `lair.rental_pk8` 构建的租用宝可梦，使用记录的租用记录，具有该行的物种、形态、等级 65 和招式，四项个体值为 31、其余随机，随机性格，特性栏位 1 或 2，性别、PID 和加密常数；原始训练家为“科学家”，精灵球，在 65 级相遇，队伍状态没有极巨化加成。零售版剑主机接受了它。
+`pokeldn/swsh/lair.py` 是两个持有者的客人端；`bin/swsh_connect.py --preset lair`（应用程序的极巨大冒险（加入））作为玩家 1 入座，并选择主机留下的第一个可用位置（租借宝可梦按顺序排列，主机的租借宝可梦在第一位）。由 `lair.rental_pk8` 构建的租借宝可梦是记录租借宝可梦的记录，包含该行的种类、形态、等级 65 和招式、四个 IV 为 31，其他随机，随机性格、能力槽 1 或 2、性别、PID 和加密常量；OT 为 Scientist，精灵球，等级 65 时遇到，队伍统计无极巨加成。一位零售剑主机接受了它。
 
 ### 大厅持有者，id 7000
 
-命名玩家的记录以其 Pia 常量 ID（u64）及其玩家索引字节开头；电脑伙伴的 ID 为零，索引为 2 和 3。
+以玩家名字命名的记录以其 Pia 常量 id（u64）和玩家索引字节开头；电脑伙伴具有零 id 和索引 2 和 3。
 
 | 字段 | 名称 | 大小 | 内容 |
 |---|---|---|---|
 | 1 | ChikaTimeLimit | uint32 | 剩余秒数，来自主机 |
-| 2 | ChikaPlayerInfo | 48 | 12 个零字节、13 个字符的 UTF-16 名称，然后是 `02 00 00 00 00 2d 00 00 00`；zlib 压缩（可靠标志 0x10） |
-| 3 | ChikaBattleReady | 16 | 玩家按下准备后字节 8 为 1；冒险开始后字节 12 为 1 |
-| 4 | ChikaSelectPokemon | 360 | 8 个零字节、u32 表示该租用宝可梦在共享提供中的位置、作为加密队伍 PK8 的租用宝可梦、四个零字节 |
-| 5 | ChikaBattleStart | 32 | 人类玩家的常量 ID，来宾的在前 |
-| 8 | ChikaBattleSeed | uint64 | 来自主机；为租用提供和遭遇设定种子（[冒险种子](#the-adventure-seed)） |
-| 9 | ChikaRentalPokemonSeed | uint64 | 来自主机，在租用选择之前 |
-| 11 | ChikaPlayerNumber | 40 | 四个常量 ID（主机、来宾、零、零），然后是玩家索引 `00 01 02 03` |
-| 12 | ChikaBigBoss | 16 | 字节 12 为 1；每个玩家随 PlayerInfo 发送自己的 |
-| 13 | ChikaBigBossFixed | 4 | u32 表示冒险中传说宝可梦的物种 |
+| 2 | ChikaPlayerInfo | 48 | 12 个零字节，13 个字符的 UTF-16 名称，然后 `02 00 00 00 00 2d 00 00 00`；zlib 压缩（可靠标志 0x10） |
+| 3 | ChikaBattleReady | 16 | 第 8 字节为 1 表示玩家已准备；第 12 字节为 1 表示冒险已开始 |
+| 4 | ChikaSelectPokemon | 360 | 8 个零字节，u32 租借宝可梦在共享报价中的位置，加密队伍 PK8 形式的租借宝可梦，4 个零字节 |
+| 5 | ChikaBattleStart | 32 | 人类玩家的常量 id，客人的第一个 |
+| 8 | ChikaBattleSeed | uint64 | 来自主机；为租借报价和遭遇播种（参见[冒险种子](#the-adventure-seed)） |
+| 9 | ChikaRentalPokemonSeed | uint64 | 来自主机，在租借选择之前 |
+| 11 | ChikaPlayerNumber | 40 | 四个常量 id（主机、客人、零、零），然后玩家索引 `00 01 02 03` |
+| 12 | ChikaBigBoss | 16 | 第 12 字节为 1；每个玩家发送自己的 PlayerInfo |
+| 13 | ChikaBigBossFixed | 4 | u32 冒险传说宝可梦的种类 |
 
-字段 6、7 和 10 未发送。顺序：加入时每个玩家的 PlayerInfo、BattleReady 和 BigBoss；字节 8 置位的 BattleReady；来自主机的 BattleStart、BattleSeed、RentalPokemonSeed、PlayerNumber、字节 12 置位的 BattleReady 和 BigBossFixed；然后每个玩家的 SelectPokemon。
+字段 6、7 和 10 不发送。顺序：加入时每个玩家发送 PlayerInfo、BattleReady 和 BigBoss；BattleReady 带有第 8 字节置位；来自主机的 BattleStart、BattleSeed、RentalPokemonSeed、PlayerNumber、BattleReady 带有第 12 字节置位和 BigBossFixed；然后是每个玩家的 SelectPokemon。
 
 ### 冒险持有者，id 8000
 
 | 字段 | 名称 | 大小 | 内容 |
 |---|---|---|---|
-| 1 | UndergroundWaySelect | 16 | 常量 ID、玩家索引、选择的路径 |
-| 3 | UndergroundWayResult | 1 | 已选择的路径，来自主机 |
-| 4 | UndergroundTradeWant | 16 | 常量 ID、玩家索引、1 表示交换获得的宝可梦 |
-| 6 | UndergroundTradeResult | 360 | 交换玩家的常量 ID、索引、两个字节，然后在 +11 处作为加密队伍 PK8 的新宝可梦 |
-| 10 | UndergroundRaidCapture | 16 | 常量 ID、玩家索引、字节 9 |
-| 11 | UndergroundRaidWant | 16 | 常量 ID、玩家索引、1 表示取走捕获的宝可梦 |
-| 12 | UndergroundRaidResult | 360 | 8 个零字节、取走玩家的索引（无则为 `ff`）、一个字节，然后在 +10 处作为加密队伍 PK8 的宝可梦 |
-| 14 | UndergroundTimeLimit | 8 | u32 剩余秒数、u32 阶段，来自主机，每秒三次 |
+| 1 | UndergroundWaySelect | 16 | 常量 id、玩家索引、选择的路径 |
+| 3 | UndergroundWayResult | 1 | 所选路径，来自主机 |
+| 4 | UndergroundTradeWant | 16 | 常量 id、玩家索引、1 表示交换为捕获的宝可梦 |
+| 6 | UndergroundTradeResult | 360 | 交换玩家的常量 id、索引、两个字节、然后加密队伍 PK8 形式的新宝可梦在 +11 |
+| 10 | UndergroundRaidCapture | 16 | 常量 id、玩家索引、第 9 字节 |
+| 11 | UndergroundRaidWant | 16 | 常量 id、玩家索引、1 表示获取捕获的宝可梦 |
+| 12 | UndergroundRaidResult | 360 | 8 个零字节、获取玩家的索引（无则为 `ff`）、一个字节、然后加密队伍 PK8 形式的宝可梦在 +10 |
+| 14 | UndergroundTimeLimit | 8 | u32 剩余秒数、u32 阶段，来自主机，每秒发送三次 |
 
-字段 2、5、7、8、9 和 13 未发送。每个来宾发送自己的 WaySelect、TradeWant、RaidCapture 和 RaidWant；主机以自己以及每个电脑伙伴各一个回应，然后给出结果。
+字段 2、5、7、8、9 和 13 不发送。每个客人发送自己的 WaySelect、TradeWant、RaidCapture 和 RaidWant；主机回复自己的以及每个电脑伙伴的，然后是结果。
 
-### 举办冒险
+### 主持一次冒险
 
-`bin/swsh_host.py --lair-legendary SPECIES [--lair-seed N]`（`pokeldn/swsh/lair_host.py`）根据模拟的盾版主机通告（场景 50000）宣告极巨巢穴网络，像连接交换一样交换快照，然后发送大厅：PlayerInfo、BattleReady 和 BigBoss，时间限制每秒三次，准备；一旦来宾准备，发送 BattleStart、BattleSeed、RentalPokemonSeed 和 PlayerNumber；一旦来宾回应已开始，发送字节 12 置位的 BattleReady 和 BigBossFixed。五秒后它像举办中的剑版主机一样离开（[离开](swsh_session.md#leaving)）：MIGRATION_START `44 00 01`，带主机迁移字节的更新会话，START_HOST_MIGRATION 每 0.33 秒一次，并在一旦游戏机离开或 10 秒后关闭网络。
+`bin/swsh_host.py --lair-legendary SPECIES [--lair-seed N]`（`pokeldn/swsh/lair_host.py`）从模拟的盾主机广告（场景 50000）开始，像连接交换一样交换快照，然后发送大厅：PlayerInfo、BattleReady 和 BigBoss，时间限制每秒发送三次，准备就绪；一旦客人准备就绪，发送 BattleStart、BattleSeed、RentalPokemonSeed 和 PlayerNumber；一旦客人确认开始，发送 BattleReady（已开始）和 BigBossFixed。5 秒后，它像主机离开那样离开（参见[离开](swsh_session.md#leaving)）：MIGRATION_START `44 00 01`，带有其主机迁移字节的更新会话，START_HOST_MIGRATION 每 0.33 秒一次，一旦控制台离开或 10 秒后关闭网络。
 
-应用的极巨大冒险（举办）工具运行这些标志：传说宝可梦、可选的连接密码和种子。它的种子选择器显示 `lair.adventure` 针对某个种子给出的三个租用宝可梦和十个遭遇，可抽选新种子，并可搜索种子以找到选定的租用宝可梦（大约每 75 个种子会提供一个给定宝可梦）。地图尽头的传说宝可梦就是 BigBossFixed 指定的物种；来宾自己的 BigBoss 全为零。租用宝可梦按回合选择，主机优先，电脑伙伴会接替已离开玩家的座位。
+应用程序的极巨大冒险（主持）工具运行以下标志：传说宝可梦、可选的链接代码和种子。它的种子选择器显示 `lair.adventure` 为该种子提供的三个租借宝可梦和十个遭遇，绘制一个新种子，并搜索具有特定租借宝可梦的种子（约 1/75 的种子提供给定的租借宝可梦）。地图末尾的传说宝可梦是 BigBossFixed 命名的种类；客人的 BigBoss 全为零。租借宝可梦按顺序选择，主机的租借宝可梦在第一位，离开的玩家座位由电脑伙伴接替。
 
-极巨巢穴的连接密码在前台用 + 设置。通告携带代码十进制值的 CRC32，去掉前导零（0000 7777 为 `7777`）；使用不同代码或不使用代码搜索时，永远不会列出该大厅。在有代码的情况下，若主机未发送 MIGRATION_START 就关闭网络，来宾会在租用画面卡在错误 2618-0006；进行交接后，来宾在 MIGRATION_START 后 0.1 秒离开，冒险继续进行。
+Max Lair 链接代码在接待员处设置。广告携带代码十进制值的 CRC32，前导零省略（`7777` 对应 0000 7777）；使用不同代码或无代码的搜索永远不会列出大厅。带代码时，主机在未发送 MIGRATION_START 的情况下关闭网络，客人会在租借屏幕上收到错误 2618-0006；而有了移交，客人在 MIGRATION_START 后 0.1 秒内离开，其冒险继续进行。
 
 ### 冒险种子
 
-冒险中的宝可梦来自 RomFS `bin/appli/chika/data_table/underground_exploration_poke.bin` 中的行，这是一个包含 273 行的 FlatBuffer：226 个 65 级的租用宝可梦和遭遇，然后是 47 个 70 级的传说宝可梦（首领标志置位）。每行包含物种、形态、等级和四个招式。
+冒险的宝可梦是 RomFS `bin/appli/chika/data_table/underground_exploration_poke.bin` 中的行，一个包含 273 行的 FlatBuffer：226 个租借宝可梦和遭遇在等级 65，随后 47 个传说宝可梦在等级 70（Boss 标志已设置）。每行包含种类、形态、等级和四个招式。
 
-ChikaBattleSeed 设置六个租用提供和遭遇；`lair.adventure(seed)` 计算它们。Xoroshiro128+ 用 u64 和 `0x82A2B175229D6A5B` 播种。每次选取用下一个 32 位输出播种 MT19937，洗牌 273 个行索引（索引 i 与 i 加上一个最多 272 - i 的抽取交换，按 `0x1ff` 掩码，超出则重新抽取），然后取第一个不是传说宝可梦且尚未被选取的行。先选取四次，然后在接下来两次选取以及最后一次之前各抽取一个 0 到 2 的数，分别在就座的电脑伙伴数多于 2、1 和 0 时进行；然后各抽取一次 0 到 2 和 0 到 9；然后十次遭遇选取，每当该行有两种属性时后面再输出一个。有三名电脑伙伴时，先抽取一个 0 到 27 的数。
+ChikaBattleSeed 决定六个租借宝可梦报价和遭遇；`lair.adventure(seed)` 计算它们。Xoroshiro128+ 用 u64 和 `0x82A2B175229D6A5B` 播种。每次选择用下一个 32 位输出播种 MT19937，洗牌 273 个行索引（索引 i 与 i 加上 0 到 272 - i 的抽取交换，掩码为 `0x1ff`，超过则重新抽取），并取第一个不是传说也未被选中的行。四次选择，然后在接下来的两次选择前各抽取一次 0 到 2，还有一次更多，每次当多于 2、1 和 0 个电脑伙伴就座时；然后抽取 0 到 2 和 0 到 9，接着十次遭遇选择，每次当该行有两种类型时再抽取一次输出。有三个电脑伙伴时，首先抽取一次 0 到 27。
 
-租用画面显示提供位置 0 到 2。每个座位依次选择，主机优先，它选择的位置由下一个未使用的位置（3，然后 4，然后 5）补充。电脑伙伴在玩家之后选择，从不通过线上：每个伙伴占据其 0 到 2 抽取所给出的画面位置，第一个伙伴使用第一次抽取。`lair.partner_places(seed, taken)` 计算它；它在三次记录的冒险（一次模拟主机和来宾，我们的来宾对模拟主机，以及对零售版剑主机）中命名了两个伙伴的租用宝可梦，这些是从主机在 0x10 类型命令中每个战斗位置使用的招式读取的。该规则只需要 ChikaBattleSeed。路径会遇见哪些遭遇尚不清楚。
+租借屏幕显示报价位置 0 到 2。每个座位按顺序选择，主机的租借宝可梦在第一位，所取的位置用下一个未使用的位置（3、然后 4、然后 5）填充。电脑伙伴在玩家之后选择，从不通过网络：每个电脑伙伴取其 0 到 2 抽取所对应的屏幕位置，第一个电脑伙伴取第一个抽取。`lair.partner_places(seed, taken)` 计算它；它在三次记录的冒险中命名两个伙伴的租借宝可梦（一次模拟主机和客人，一次我们的客人对模拟主机，一次对零售剑主机），这些记录从主机的类型 0x10 命令中读取每个战斗位置使用的招式。该规则仅需要 ChikaBattleSeed。哪些遭遇在一条路径上相遇尚不清楚。
+
+作为零售剑主机的客人，`swsh_connect.py --preset lair` 遵循了三次遭遇和传说宝可梦（Raikou）的所有路径和捕获选择，其租借宝可梦在每次战斗中使用其第一个招式；主机的玩家输掉了最后一场战斗，整个会话结束时没有错误。
 
 ## 离开
 
-一旦其玩家离开奖励画面，零售版剑主机会以每 0.33 秒一次 START_HOST_MIGRATION 关闭网络，持续 10 秒，与连接交换之后一样（[离开](swsh_session.md#leaving)）。未离开的来宾会让主机玩家在大地图中冻结，直到超时；`--leave-with-host` 会在第一次时离开。
+一旦玩家离开奖励屏幕，零售剑主机通过每 0.33 秒发送 START_HOST_MIGRATION 10 秒，像连接交换后离开那样（参见[离开](swsh_session.md#leaving)）。不离开的客人会让主机的玩家在野外冻结直到超时；`--leave-with-host` 在第一次时离开。
 
-## 未解决的问题
+### 中途离开
 
-- 非 Pia 主机的游戏机是否会发布框架对象 0 到 7。
-- 在零售硬件上，一个举办大厅中有多台游戏机；目前仅在模拟的盾版上测量过。
-- PlayerInfo 的 u32 和最后几个字节的含义。
-- 动作的其余十个条目、极巨化，以及 8 和 2 之外的目标代码。原样重放时，一个记录的水枪动作会让任何来宾宝可梦使用水枪，在零售版剑主机上也是如此。
-- 极巨大冒险：有三名电脑伙伴时伙伴的顺序；在租用画面接替已离开主机座位的伙伴占据了位置 1，而 `partner_places` 给出的是位置 2。
-- 极巨大冒险：PlayerInfo 的尾部字节、BigBoss、RaidCapture 中玩家索引之后的字节以及结果记录，以及两个持有者未发送的字段。
-- 零售版来宾是否会从巢穴记录为零的巢穴通告中接受活动首领，以及零售版活动巢穴主机在巢穴种类位和巢穴记录中写入什么。
+在本地 Den 团体战中离开的站点不会结束其他人的战斗。战斗的离开服务（由 `0x8b7830` 构建，保存在 btl-net `+0x3b8`）在处理程序 `0x8c4570` 中收听 Pia 会话的站点离开事件（`0x6b4850`，类型 1）。在本地 Den 团体战中（设置 `+4` = 2，`+0x3b8` = 1，由 `0x7e7c50` 在 `nn::pia::local` 模式中设置），它保持座位连接 30 秒（`0x7530`），然后移除站点（`0x8c3f70`，`0x8b4140`）并重新运行服务器选择；服务控制台将座位的备用客户端（`main+0x1c0 + 8 * i`，`0x8dfcb0`）放入其中（`0x7f8450`）。丢失的会话（类型 3）通过 `0x10f8e30` 提升错误（2,4）。
+
+在模拟盾 1.3.2 上测量，战斗中途杀死进程且未发送任何内容：
+
+| 控制板 | 控制台所做的 |
+|---|---|
+| 控制台的 Den 大厅中的客人 | 战斗继续进行，没有错误；下回合的菜单出现 |
+| 主机，控制台在服务中（`--raid-console-serves`） | 战斗暂停约一分钟，然后继续进行，没有错误；Boss 在下回合受到伤害 |
+
+在零售剑主机上通过 ESP32 控制板，战斗 10 秒后杀死进程，两种角色都得到相同的结果：没有错误，战斗继续进行。
+
+一次干净的移交（战斗 5 秒后 MIGRATION_START，然后关闭网络）会让控制台在 0x18 端口 0 上回复 `48 01`，0.1 秒后离开网络并显示 2618-0006，之后其战斗离线继续进行。主机在战斗开始前离开会让控制台停留在“Connexion en cours”（参见[客人的顺序](#the-guests-sequence)）。
+
+## 未解决
+
+- 是否非 Pia 主机的控制台会发布框架对象 0 到 7。
+- 备用客户端为已离开玩家的座位选择什么。
+- 一局托管大厅中有多个控制台在零售硬件上；仅在模拟盾上测量。
+- PlayerInfo 的 u32 和末尾字节的含义。
+- 操作的其他十个条目、极巨化和目标代码 8 和 2 之外的内容。原样重放一条记录的水枪操作会让任何客人宝可梦使用水枪，甚至在零售剑主机上也一样。
+- 极巨大冒险：三个电脑伙伴时的伙伴顺序；一个电脑伙伴在租借屏幕上接替离开的主机时，`partner_places` 给出的是位置 2，但它拿到了位置 1。
+- 极巨大冒险：PlayerInfo 的末尾字节、BigBoss、RaidCapture 中玩家索引后的字节和结果记录，以及两个持有者的未发送字段。
+- 零售客人是否会从 Den 广告中获取事件 Boss（Den 记录为零），以及零售事件 Den 主机在 Den 类型位和 Den 记录中写入什么。

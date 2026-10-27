@@ -316,6 +316,8 @@ GBA 代码通过 Sloop 系统调用到达 Switch 模拟器：在 `swi 0x40` 到 
     +0x08  0xB0B00002   it returned, and zero until it does
     +0x0C  r0, r1, r2, r3 as the syscall left them
 
+较小的编号会跑嵌入式 BIOS：`main` 在文件偏移 `0x177BAC` 处携带 16384 字节的 GBA BIOS 映像，向量表在 `+0`，字符串 `Coded by Kawasedo` 在 `+0x2D34`。`swi 0x00..0x2A` 作为访客 ARM 代码在模拟 CPU 中执行。位于 `main+0x57014` 的分派器接管 `0x40..0x62`，并把低于 0x2B 的编号留给该映像。
+
 `swi 0x54`，即 `svc_CommsAllowedByParentalControls` [sloopsvc.c:182]，在没有家长控制的主机上返回非零值。
 
 #### 分派器及其跳转表
@@ -568,7 +570,21 @@ NSO 的 vtable 槽在文件中保存的是未重定位的加数；加载器会�
 
 因此，当折叠位置越过 ROM 缓冲区末尾时，记录解析器的存储会在零售机上触及一个活跃的包装器对象，应用在此处中止；而同样的存储若停留在访客可见内存中则不会。将主体帧压栈的载荷在零售机上也会从该站点返回。
 
+仅靠广播也能结束该软件。主机信标的 8 字节显示名字段里若没有 `0xFF`（第三世代字符串终止符），会在主机发送数据报或加入之前，以与好友列表打开时相同的提示关闭软件；主机的扫描抓包不会记录任何 `udp_in`。八字节内任意位置有 `0xFF` 即可避免；若 `0xFF` 落在字段之外几字节处则不行，因此搜索范围停在字段内。正常编码的名字总以 `0xFF` 结尾，所以这需要特制的广播；这是包装器侧的中止，不是组件写入。
+
 写入后的分派是应用的下一个 `bkpt #0x52`。游戏从两个地方产生这些断点：STWI 驱动的 IWRAM 副本（链路开启时约每秒 60 次，来自对其命中计数的实时读取），以及它在站点处对 `Sio32IDMain` 的自身调用（对记录 1 的实时读取中有 12 次命中）。当 vtable 的低字节为 `0x80` 时，该分派到达 `main + 0x5492C`，它会在重写后的指针上重新读取 `[component] + 0x98`，并递归直到线程栈离开其区域；主机返回 HOME 且没有 `Session type 3`。一个载荷将卡带自身的指令放回 IWRAM 副本的 `bkpt #0x52` 之上，并还原卡带副本的两处加载时补丁（通过 `swi 0x48` 覆盖包含两个站点的 4 KB 块），就移除了这两个来源：主机随后显示游戏自身的通信错误，以 `Session type 3` 离开 LDN，提交网络报告并继续运行。在该状态下，被写入的指针是惰性的，不会被修复：没有任何代码位置会恢复 vtable。还原后的卡带副本同样具有进程生命周期状态：无线菜单随后报告适配器未连接，而完全重启会重新应用包装器的加载时补丁。
+
+#### 作为 vtable 写入的候选复制
+
+`swi 0x45` 通过候选列表组合其存储，而不是一次放置。当列表中有一个候选（`owner + 0x2770 == 0xB`，计数 1）且 `r0 = 0x08FFFFD7` 时，该候选的 8 字节显示名落在 `component + 0`，而 `bkpt #0x52` 钩子对象位于 `+0x60`，留在写入范围之外。该名字是槽位字节 `+0x10..+0x17`（[包装器自身的扫描管线](#the-wrappers-own-scan-pipeline)），因此组件的 vtable 指针来自对端的广播记录。
+
+下一次 `bkpt #0x52` 读取 `[component]` 并调用 `[component + 0x98]`，所以在该状态下，广播的名字就是调用目标。该状态需要访客选定的折叠：游戏自身的 `swi 0x45` 会交出 IWRAM 中的 `gRfuLinkStatus`（[其余系统调用](#the-remaining-syscalls) 中的 `swi 0x45` 参数），从而把写入留在 RFU API 缓冲区内，因此单靠广播到不了任何 vtable。在模拟的法语火红上测得：广播名为 `08 01 df 1f 66 00 00 00`（`0x661FDF0108`，位于 ROM 副本内），通过 `swi 0x48` 向折叠 `0xFA3F6`（`ROM + 0x3F6000`）写入一块 4 KB 的 `0xDEADBEEF`，一个候选，以及载荷的 `bkpt #0x52`：
+
+```
+Unhandled guest exception PcAlignmentFault at ELR 0xDEADBEEFDEADBEEF (ESR 0x8A000000)
+```
+
+`ESR 0x8A000000` 携带异常类 `0x22`（PC 对齐故障），且 `ELR` 保存的是 `[P + 0x98]` 处的八个字节，其中 `P` 等于广播名。分支目标是访客数据。
 
 ### 覆盖范围
 
@@ -585,7 +601,7 @@ Pia 一侧的两端都已解码：访客的 `RfuGameData` 和用户名被重新�
 | 0x42 | 模式切换 `main + 0x0588A0` | `rfu_REQ_startSearchChild` [sloopsvc.c:49]；将网络管理器设为模式 2 | 以链接错误结束会话；未打开接入点 |
 | 0x43 | `main + 0x0570EC` -> `main + 0x058AD0` | `rfu_REQ_startConnectParent`，`r0` 中为 16 位 PID [sloopsvc.c:91]；相同的模式切换 | 缓冲脚本应答，然后在关闭时显示 `"Erreur de connexion"` |
 | 0x44 | `main + 0x057100` -> `main + 0x058B0C` | `rfu_REQ_stopMode`，无参数 [sloopsvc.c:102] | 在 0x43 之后，无可观察变化 |
-| 0x45 | `main + 0x057110` -> `main + 0x058900` | `rfu_REQ_startSearchParent`，`rfu_STC_readParentCandidateList` 使用 `&gRfuLinkStatus` [sloopsvc.c:67-75]；将包装器的扫描结果通过区域表复制到 `struct RfuLinkStatus`，`findParentCount` [include/librfu.h] 先位于偏移 8 | 220 个清零字节保持为零（在礼物会话中没有父搜索） |
+| 0x45 | `main + 0x057110` -> `main + 0x058900` | `rfu_REQ_startSearchParent`，`rfu_STC_readParentCandidateList` 使用 `gRfuLinkStatus` [sloopsvc.c:67-75]；游戏从 IWRAM `0x03003110` 加载该指针变量（`0x0800C6EA`，Switch ROM 中三条指令），`rfu_initializeAPI` 将其设为 `0x03004710` 处的 `sRfuAPIBuffer`；将包装器的扫描结果通过区域表复制到 `struct RfuLinkStatus`，`findParentCount` [include/librfu.h] 先位于偏移 8 | 220 个清零字节保持为零（在礼物会话中没有父搜索） |
 | 0x46 | 跳转表项 `0x147` | 落入分派器的退出：该系统调用什么也不做 | |
 | 0x47 | `main + 0x05715C` -> `main + 0x058680` | `rfu_REQ_configGameData`，`r0` 指向 `struct RfuGameData`（16 字节）和用户名（8，`RFU_USER_NAME_LENGTH`）[sloopsvc.c:34-46; include/link_rfu.h:103-115,232]；若发生变化，将所有 24 字节复制到 `component + 0x6050D8`，并将 `activity`（第二个 64 位字的第 16–22 位）复制到 `component + 0x605360` | `activity` 0x30 逐字节落在两处 |
 | 0x48, 0x56 | `main + 0x057084` | 闪存扇区复制：目标扇区为 guest `r0`，源为通过同一区域表折叠的 `fold(guest r1)`，并对区域大小进行边界检查，最多 4 KB | [闪存扇区路径](#the-flash-sector-path) |
@@ -615,7 +631,7 @@ Pia 一侧的两端都已解码：访客的 `RfuGameData` 和用户名被重新�
 
 控制台自身的神秘礼物搜索在任何缓冲脚本之前发出 `swi 0x47`，通告 `activity` 0x15（`ACTIVITY_WONDER_CARD` [include/constants/union_room.h:46]）；载荷的调用会覆盖它。`main + 0x0586B4` 处的断点通过 `x8 + 0x280` 读取 `component + 0x605360`。游戏数据对象（vtable `main + 0x1C3B30`）是 CPU/总线对象 `bkpt #0x52` 的钩子表解析出的同级对象（vtable `main + 0x1C3878`、区域表、系统调用 0x45、0x48、0x52、0x55、0x62）；实际地址相差 `0x100000000`。
 
-0x45 写入的每个候选者布局尚未确定：复制循环的字节数与 `sizeof(struct RfuTgtData)` 不匹配；依赖它之前请实时读取。
+`swi 0x45` 为每个候选写入一条固定记录，而不是复制 `sizeof(struct RfuTgtData)`：在 `dest + 0x14 + n*0x20` 处写入 id、槽位、序列号、位于 `+6` 的 15 字节游戏名和位于 `+0x15` 的 8 字节用户名，`mbootFlag` 在 `+3`，槽位最后三个字节保持原样。剩余候选数量写入 `dest + 8`。一次调用最多写入四条记录，然后推进游标，因此更长的列表需要第二次调用。于是 `0x18` 门限在一个候选时越界 `0x19` 字节，在四个候选时越界 `0x79` 字节；计数从不拉长单次调用。
 
 `component + 0x6050D8` 是 `swi 0x47` 复制的 24 字节（[main + 0x058694]，来自 guest `r0` 缓冲区的预索引存储），同一处理程序会读回它，并将其重新打包到广播记录中。`component + 0x605360` 的读取者是活动差异 `main + 0x058698`（通过 `component + 0x6050E0`）和 `svc_SetActivity` 的设置器 `main + 0x058B40`；两者都比较或存储活动代码。
 
@@ -721,7 +737,7 @@ Pia 一侧的两端都已解码：访客的 `RfuGameData` 和用户名被重新�
 
 包装器通过其自身的 PLT（`main + 0x160B70`；`ScanPrivate` 在 `main + 0x160B60`）用 `nn::ldn::Scan` 扫描网络，调用点 `main + 0x80944`/`0x8095C` 处来自管理器对象 `x23`，`w2 = 0x18` 个网络，写入 `manager + 0x14C0` 处的内联数组，24 项 x `0x480`（初始化时一次性清零，`main + 0x7E290`）。模拟器自身的 ldn 服务将线上 `ScanResponse` 主体直接转换为 `NetworkInfo`，不做长度检查，因此对侧座席的字段值会原样到达包装器。
 
-消费循环（`main + 0x80A20..0x80B9C`）遍历该数组：它清零 `sp + 0x128` 处的 `0x480` 字节记录（`main + 0x874A0`），将条目转换到其中（`main + 0x87374`：一次将整个 `0x480` 块 memcpy 到 `record + 0xB8`，然后逐位精确读取字段：源 `+0xA`、`+0x11`（一个 15 字节整数解析，`main + 0xA9830`，支持十六进制/八进制/十进制/二进制，带 `b`/`x` 前缀，每次前进都做边界检查）、`+0x26A`（广播数据大小）、`+0x281`/`+0x282`、`+0x11A..0x11F`；存储到记录 `+0x90`、`+0xA0`、`+0xA2`、`+0xA4`、`+0xA6`、`+0xB0`），然后将记录依次通过过滤虚函数和接受虚函数（`main + 0x80A88..0x80A94`）。
+消费循环（`main + 0x80A20..0x80B9C`）遍历该数组：它清零 `sp + 0x128` 处的 `0x480` 字节记录（`main + 0x874A0`），将条目转换到其中（`main + 0x87374`：一次将整个 `0x480` 块 memcpy 到 `record + 0xB8`，然后逐位精确读取字段：源 `+0xA`、`+0x11`（一个 15 字节整数解析，`main + 0xA9830`，支持十六进制/八进制/十进制/二进制，带 `b`/`x` 前缀，每次前进都做边界检查）、`+0x26A`（广播数据大小）、`+0x281`/`+0x282`、`+0x11A..0x11F`；存储到记录 `+0x90`、`+0xA0`、`+0xA2`、`+0xA4`、`+0xA6`、`+0xB0`），然后将记录依次通过过滤虚函数（`main + 0x80A70`，`LocalSearchNetworkSetting::vfunc2` 在 `main + 0xA0F48`；该设置为位于 `+0x300` 的 `LdnBackgroundProcessJob` 子对象，vtable `0x1CB408`）和接受虚函数（`main + 0x80A94`，站点列表的 `LocalSessionProperty::vfunc11` 在 `main + 0x87420`，它复制记录并调用 `main + 0xA1BAC` 处的 `vfunc17`）。过滤器用设置的标志字节 `+0x14` 对照属性的会话 id（`+0x98`），用 u16 `+0xa2` 对照 `[setting + 0x12, setting + 0x10]`，以及布尔值 `+0xa6`；接受方复制记录，把记录 `+0x11` 处的 15 字节散列进 `+0x90`，并把标志存到 `+0xa7`。两者都不读取显示名。
 
 被接受的网络落入父候选列表：`owner + 0x6050F2` 处的 16 个槽位 x `0x1A` 字节，写索引在 `owner + 0x605294` 封顶为 15（`cmp w8, #0xf; b.le` [main + 0x58C3C]）；数组结束于 `+0x605292`，紧贴索引。填充是所有者类（vtable `main + 0x1C3B30`）的槽位 `+0xA0`，`main + 0x58BF8`，由 `main + 0x536A4` 按扫描结果站点调用；站点名称长度来自站点自身的虚函数 [槽位 `+0x50`]，并且 `sub w8, w0, #1; cmp w8, #0x3f; b.hi` [main + 0x5364C] 在调用前丢弃 `x6 > 0x40` 的值。在填充内部，`sp + 7` 处的 `0x41` 字节栈缓冲区接收 `memcpy(sp + 7, x5, x6)`，当 `x6 > 0x40` 时跳过尾部清零的 memset [main + 0x58C68]：对于 `x6 > 0x40`，复制会到达帧的保存 `x29`/`x30`（缓冲区偏移 `0x59`/`0x61`）。解码的唯一调用方先进行了钳制，因此通过它的长度最多为 `0x40`；在映像的八个加载类槽位 `+0xA0` 的站点中，`main + 0x536A4` 是确认会对此类进行分派的那个。
 
@@ -1146,7 +1162,7 @@ THUMB 安装器为 148 字节，剩余 876 字节给钩子，其数据（`p_fram
 行走时测得：每帧两次 `Random` 调用；从前一帧的种子起，性格掷骰是第五次调用
 （`VBlankIntr` 的 [main.c:412]，本帧自身那次、槽位、等级、性格）。
 
-#### `shiny`、`ivs`、`noencounter`
+#### `shiny`、`shiny-press`、`ivs`、`noencounter`
 
 `shiny`（`asm/resident/shiny.s`）倒计时到下一次野生异色掷骰。`VBlankIntr` 每帧调用一次
 `Random` [main.c:412]；野生宝可梦为性格掷出 `Random() % 25`，然后抽取
@@ -1159,6 +1175,21 @@ TID 和 SID 取自 `gSaveBlock2Ptr`（`0x0300422C`）`+0x0A`。该钩子逐帧�
 让 VCount 保持启用 [crt0.s]，因此 `m4aSoundVSync` 会运行；该钩子每等待一个 V-blank
 就调用一次 `m4aSoundMain`（`0x081DF53D`；`gPcmDmaCounter` `0x03002F68`，来自
 `gSoundInfo` `0x03005F80`），并在 `REG_IF` 中清除它。状态位于 `0x0203FF80`，占 36 字节。
+
+`shiny-press`（`asm/resident/shiny-press.s`，872 字节）是同一份源码以 `SHINY_PRESS` 汇编：无慢动作，`method=1`，并由钩子按下 A。在倒计时为 0 的空闲帧，当 `callback1`/`callback2` 为 `CB1_Overworld`/`CB2_Overworld`，且 `sGlobalScriptContext`（全部十二种卡带上均为 `0x03000FB0`，`ScriptContext_SetupScript` 的第一个字面量）模式为 2、`nativePtr` 为 `WaitForAorBPress`（`ScrCmd_waitbuttonpress` 的字面量，`gScriptCmdTable[0x6D]`；法语版 `0x0806F159`），或者未运行脚本（模式 0）同时按住 B 时，它用 `adr` 找到的垫片写入 `callback1`。下一轮主循环会先跑 `ReadKeys` [main.c:81]；垫片把 `CB1_Overworld` 放回，把 A 或进 `gMain.newKeys`，再调用它。等待中的脚本立刻返回 [scrcmd.c:1313]；无脚本时，A 与玩家面对的对象对话。按住的 B 在等待处不是新按下，站着不动时什么也不做。
+
+| 宝可梦 | 生成它的那次按键 | `offset` mGBA | `offset` 零售 Switch |
+|---|---|---|---|
+| 超梦 | 其 `waitbuttonpress`；随后是 `setwildbattle` [CeruleanCave_B1F/scripts.inc:37] | 1 | 3 |
+| 急冻鸟、闪电鸟、火焰鸟 | 对话：`lock`、`faceplayer`、`setwildbattle`，然后等待 | 2 | 5 |
+
+在 Switch 2 上零售英文火红中，于超梦叫声处以 `offset=1` 按下，得到性格值 `0x9C9D9DC5`，比目标异色那次晚两次调用；`offset=2` 得到非异色超梦，`offset=3` 得到异色。面对闪电鸟时，对话按键在 `offset=4` 给出 `0xC2C9758B`（比目标异色晚一次调用），`offset=5` 给出异色闪电鸟（`tests/test_shiny.py`）。应用发送 3 和 5。
+
+Switch 的模拟器在每个 V-blank 调用两次 `Random`，而 mGBA 调用一次：在 Ryujinx 上站在华蓝洞窟 B1F，法语火红，600 个 V-blank 内 1200 次调用，且每一次 `intrCheck` 位 0 都清零。在每帧两次调用时，奇数倒计时会从 1 变成 -1，永远不会按下；在零售主机上，这让闪电鸟对话按键在三次倒计时里丢了两次。钩子把上一帧的 `64 - calls` 保存在状态 `+32`，并在该值为 62 时丢弃倒计时为奇数的已持有目标，使它显示的每个倒计时都能到 0。带上该钩子并以 `offset=3`，Ryujinx 在叫声处的第一次倒计时给出了异色超梦（`0xA893924D`）。
+
+在 mGBA 中，CONTINUE 之后的回顾会让玩家对象朝南（`gObjectEvents[0]` 的 `+0x18` = `0x11`，法语与英文火红均为 `0x02036E34`），回顾期间按下的方向不会被采用；钩子的 A 于是进入 `gMain.newKeys` 却对空谈话。回顾后一帧向上会把方向设为 `0x22`（北），下一次按下才会对话。应用让玩家与超梦对话；叫声处不需要按键。野生战后钩子保留倒计时，但在再次发送之前不会在叫声处按下。
+
+`offset` 从按下那一帧钩子的种子数到性格值前一次调用；在法语火红的 mGBA 上测得（A 按住一帧，各三次按下，`tests/test_shiny.py`），并用应用的载荷端到端跑完，玩家按住 B：在闪电鸟处偏移 0 到 8 只在 2 得到一只异色。按表中的偏移，应用载荷在七种卡带上全部给出异色：法语、英文、西班牙文与德文火红，法语、英文与意大利文叶绿。日文未试。
 
 `ivs`（`asm/resident/ivs.s`）在两行中显示队首宝可梦的个体值（`OVERLAY_TWO_ROWS`，
 第二行在 `gMain.oamBuffer[112..117]`，y 为 10）：HP、攻击、防御、速度，然后是特攻、特防和

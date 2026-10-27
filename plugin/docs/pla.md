@@ -6,416 +6,417 @@ has_children: true
 
 # 传说 阿尔宙斯
 
-宝可梦传说 阿尔宙斯（title id `01001f5010dfa000`）是一款原生 Switch 游戏，Pia 6.16-6.23 静态链接到 `main` 中。地址是更新 1.1.1 解压后的 `main` 中的偏移，布局由 `tools/switch/nso_read.py` 确定（text `0x0..0x32a5690`，rodata 从 `0x32a6000` 起，data 从 `0x401a000` 起）。
+宝可梦传说 阿尔宙斯（标题 ID `01001f5010dfa000`）是一款原生 Switch 标题，Pia 6.16-6.23 静态链接在 `main` 中。地址是解压后的更新 1.1.1 的 `main` 偏移量，如 `tools/switch/nso_read.py` 所布局（text `0x0..0x32a5690`，rodata 从 `0x32a6000`，data 从 `0x401a000`）。
 
 ## 无线层
 
 | | 值 |
 |---|---|
-| Pia 头版本 | 11（剑 4、BDSP 9、GBA 应用 15/16） |
-| 头大小 | 0x1C |
-| 线上的 GCM tag | 8 字节，从 16 字节截断 |
-| LDN 口令 | 剑／盾的，`HGhG` 拼写（wiki 的 `HGHG` 行有误）；rodata `0x3985319` |
-| Pia 游戏密钥 | `p1frXqxmeCZWFv0X`，同剑／盾和朱／紫；rodata `0x3985308` |
-| LDN 本地通信 id | `0x01001f5010dfa000`，即 title id |
+| Pia 标头版本 | 11 (剑 4, 晶灿钻石／明亮珍珠 9, GBA 应用 15/16) |
+| 标头大小 | 0x1C |
+| 线上 GCM 标签 | 8 字节，由 16 字节截断 |
+| LDN 密码 | 剑／盾的，`HGhG` 拼写（wiki 的 `HGHG` 行是错误的）；rodata `0x3985319` |
+| Pia 游戏密钥 | `p1frXqxmeCZWFv0X`，如剑／盾和朱／紫；rodata `0x3985308` |
+| LDN 本地通信 ID | `0x01001f5010dfa000`，标题 ID |
 
-LDN 设置 `0x2c1e684` 在 `x3` 中接收本地通信 id（在 `0x264082c` 构造），并在 `0x2c1e880` 安装游戏密钥。头部初始化器 `0x6f0744` 把 magic 存储到对象 `+8` 处，并把 `0x0b` 存到 `+0xc`；校验器 `0x6f07d0` 检查 magic、`(byte & 0x7f) == 11` 以及长度减 0x1C 后小于 0x5a5。数据包缓冲区位于 `+0x30`（容量 0x5c0），长度位于 `+0x5f8`；字段大小来自复制赋值 `0x6f0878`：
+LDN 设置 `0x2c1e684` 在 `x3` 中接受本地通信 ID（在 `0x264082c` 构建）并在 `0x2c1e880` 安装游戏密钥。标头初始化器 `0x6f0744` 在对象 `+8` 存储魔数并在 `+0xc` 存储 `0x0b`；校验器 `0x6f07d0` 检查魔数、`(字节 & 0x7f) == 11` 和长度减去 0x1C 小于 0x5a5。数据包缓冲区位于 `+0x30`（容量 0x5c0），长度位于 `+0x5f8`；字段大小来自拷贝赋值 `0x6f0878`：
 
-    wire  object  size  field
-    0x00  +0x08   4     magic 0x32AB9864, big-endian
-    0x04  +0x0c   1     0x80 (encrypted) | version (0x7F) = 11
-    0x05  +0x0e   2     destination variable id
-    0x07  +0x10   2     source variable id
-    0x09  +0x12   2     packet id
-    0x0b  +0x14   1     footer size
-    0x0c  +0x15   8     AES-GCM nonce
-    0x14  +0x1d   8     AES-GCM tag, truncated from the 16 the object holds
-    0x1c                ciphertext, then the plaintext footer
+    线上  对象  大小  字段
+    0x00  +0x08   4     魔数 0x32AB9864，大端
+    0x04  +0x0c   1     0x80 (加密) | 版本 (0x7F) = 11
+    0x05  +0x0e   2     目标变量 ID
+    0x07  +0x10   2     源变量 ID
+    0x09  +0x12   2     数据包 ID
+    0x0b  +0x14   1     页脚大小
+    0x0c  +0x15   8     AES-GCM 随机数
+    0x14  +0x1d   8     AES-GCM 标签，由对象持有的 16 字节截断
+    0x1c                密文，然后是明文页脚
 
-加密路径 `0x6f09f4` 减去 footer、用 0xFF 填充到块大小、从缓冲区 `+0x4c` 加密、通过 GCM 入口 `0x6e68d0` 写入 tag 长度为 8 的 tag（`0x6f0b24`），然后把 `0x80` 按位或进版本。
+加密路径 `0x6f09f4` 减去页脚，0xFF 填充到块大小，从缓冲区 `+0x4c` 加密，写标签通过 GCM 入口 `0x6e68d0`，标签长度为 8 (`0x6f0b24`)，然后将 `0x80` 或入版本。
 
-断点：socket read `0x6ff6d8`、validator `0x6f07d0`、decrypt `0x6f0b84`（在这里失败说明 key、IV 或 tag 有误）、`LdnBackgroundProcessJob::WaitConnected` `0x7015b4`。
+断点：套接字读取 `0x6ff6d8`，校验器 `0x6f07d0`，解密 `0x6f0b84`（在此失败是关键，IV 或标签），`LdnBackgroundProcessJob::WaitConnected` `0x7015b4`。
 
-分发依据是数据包的源 variable id：来自注册表中缺失站点的消息会被跳过，而且 variable id 每个会话都会重新随机生成。消息标志 `0x01` 会跳过源 variable id 检查；`bin/pla_host.py` 会在两个探测包上都设置该标志。
+分发键是数据包的源变量 ID：来自注册表中缺失的站点的消息被跳过，变量 ID 每次会话重新滚动。消息标志 `0x01` 跳过源变量 ID 检查；`bin/pla_host.py` 在两个探测上设置它。
 
 ## 数据包加密
 
 | | |
 |---|---|
-| 会话密钥 | 对网络 SSID 的一个块执行 `AES-128-ECB(game key)` |
-| 网络 id | `ssid[1:16]` 的 CRC-32 |
-| GCM IV | `u32be(network id XOR source IP)` 再拼接头部的 8 字节 nonce |
-| 头部 nonce | 每个数据包一个大端序计数器 |
-| tag | GCM tag 的前 8 字节 |
+| 会话密钥 | `AES-128-ECB(游戏密钥)` 覆盖网络 SSID 的一个块 |
+| 网络 ID | `ssid[1:16]` 的 CRC-32 |
+| GCM IV | `u32be(网络 ID XOR 源 IP)` 然后是标头的八个随机数字节 |
+| 标头随机数 | 每个数据包的大端计数器 |
+| 标签 | GCM 标签的前 8 字节 |
 
-`0x70d61c` 派生会话密钥；`LocalOutputStream::vfunc3`（`0x711710`）构造 IV。`pokeldn/ldn/crypto.py` 覆盖 6.16 到 6.42。
+`0x70d61c` 派生会话密钥；`LocalOutputStream::vfunc3` (`0x711710`) 构建 IV。`pokeldn/ldn/crypto.py` 覆盖 6.16 到 6.42。
 
-## 数据包之上的协议
+## 会话层之上的协议
 
-Pia 6.16 到 6.30 保留了会话层以下的 5.29 到 5.45 id，并用一个 Session Protocol 替换了 station 和 mesh 协议：
+Pia 6.16 到 6.30 保持 5.29 到 5.45 的会话层以下 ID，并用一个会话协议替换站点和网状协议：
 
 | 协议 | 5.29-5.45 | 6.16-6.30 | 6.32-6.40 |
 |---|---|---|---|
-| Net | 无 | 0x2C | 1 |
+| Net | 缺失 | 0x2C | 1 |
 | RTT | 0x58 | 0x58 | 3 |
 | Unreliable | 0x68 | 0x68 | 5 |
-| Clone、atomic to clock | 0x74-0x77 | 0x74-0x77 | 6-9 |
+| Clone, atomic to clock | 0x74-0x77 | 0x74-0x77 | 6-9 |
 | Reliable | 0x7C | 0x7C | 10 |
 | Broadcast reliable | 0x80 | 0x80 | 11 |
 | Session | 0x94 | 0x98 | 13 |
 | Monitoring data | 0xA4 | 0xA4 | 15 |
-| Station、mesh、sync clock、local | 0x14, 0x18, 0x1C, 0x24 | 无 | 无 |
+| Station, mesh, sync clock, local | 0x14, 0x18, 0x1C, 0x24 | 缺失 | 缺失 |
 
-`pia_connect.py` 适配这个频段，并对 id 重新编号。主机的 join request 列出的内容：
+`pia_connect.py` 用重新编号的 ID 适配这个范围。主机的加入请求列出：
 
     Net 0x2c v0   RTT 0x58 v3   Unreliable 0x68 v1   Clone 0x74 v0   Clock 0x77 v0
     Reliable 0x7c v2   BroadcastReliable 0x80 v3   0x81 v3   Session 0x98 v0   Monitoring 0xa4 v0
 
-消息在其载荷结束处结束；这个频段不会把消息对齐到 4 字节（5.27-5.45 会）。每一层的填充字节都是 0xFF：消息遍历会把存在字节 0x00 当作继承上一条消息字段的单字节头，因此零填充会使数据包失败（`0x74419c`）。主机会在 `0x6f0af8` 用 0xFF 预填其加密缓冲区；`0x6e6cb0` 把块大小设为 16。`pokeldn/ldn/pia6.py` 使用版本 11，`pia5.parse_messages` 读取分帧。`tests/test_pia6.py` 固定了布局、密钥派生、两个捕获的 advertisement 以及从 `main` 中读出的每个常量。
+一条消息在其有效载荷结束处结束；这个范围不将消息对齐到四字节（5.27-5.45 范围会）。填充字节在每个级别都是 0xFF：消息遍历读取存在字节 0x00 作为继承前一条消息字段的一字节标头，因此零填充会使数据包失败 (`0x74419c`)。主机在 `0x6f0af8` 用 0xFF 预填充其加密缓冲区；`0x6e6cb0` 将块大小设为 16。`pokeldn/ldn/pia6.py` 使用版本 11，`pia5.parse_messages` 读取框架。`tests/test_pia6.py` 固定布局、密钥派生、两种捕获的广告以及从 `main` 中读取的每个常量。
 
-| 协议 | 头部 destination | footer |
+| 协议 | 标头目标 | 页脚 |
 |---|---|---|
-| Session、Clone Clock、Reliable | 对方的 variable id | 无 |
-| RTT、Stream Broadcast Reliable | mesh 目标 0x0001 | 接收者的 variable id，明文 |
+| Session, Clone Clock, Reliable | 对等方的变量 ID | 无 |
+| RTT, Stream Broadcast Reliable | 网状目标 0x0001 | 收件人的变量 ID，明文 |
 
-头部中目标为对方 variable id 的 0x81 消息永远不会到达游戏。
+一条 0x81 消息如果目标是标头中的对等方变量 ID，则永远不会到达游戏。
 
 ### Net 协议
 
-托管自身网络的主机会以 `NetUpdateNetworkConnectionStatusMessage`（0x2C 类型 0x11）开始，即 wiki 的 6.16 到 6.39 布局：
+一个主机自身的网络以 `NetUpdateNetworkConnectionStatusMessage` (0x2C 类型 0x11) 开头，wiki 的 6.16 到 6.39 布局：
 
-```
-01 11 002a          header version 1, type 0x11, payload size 0x2a
-00000002            sequence id
-eb6f                host variable id, fresh every session
-ac56011000020000    host constant id, ldn_constant_id of 02:00:ac:10:56:01
-000000004f264487    network id, the low four bytes crc32(ssid[1:16])
-01                  is network open
-0002                number of stations
-00                  is migrating host
-...                 NetStation entries, 21 bytes each (6.39 has 22)
+    01 11 002a          标头版本 1，类型 0x11，有效载荷大小 0x2a
+    00000002            序列 ID
+    eb6f                主机变量 ID，每会话刷新
+    ac56011000020000    主机常量 ID，ldn_constant_id 为 02:00:ac:10:56:01
+    000000004f264487    网络 ID，低四字节为 crc32(ssid[1:16])
+    01                  网络是否开放
+    0002                站点数量
+    00                  是否正在迁移主机
+    ...                 NetStation 条目，每个 21 字节（6.39 为 22）
 
-    NetStation  +0x00 1 migration state   +0x01 1 migration ranking
-                +0x02 1 one byte where 6.39 has two (disconnection candidate, kicking)
-                +0x03 18 16-byte address then big-endian u16 port (12345)
-```
+    NetStation  +0x00 1 迁移状态   +0x01 1 迁移排名
+                +0x02 1 一字节，6.39 有两个（断开候选，踢出）
+                +0x03 18 16 字节地址然后大端 u16 端口 (12345)
 
-### Session 加入请求
 
-一个 115 字节的 Session 类型 0：类型字节、协议数量、十个 `(id, version)` 对，然后是：
+### 会话加入请求
 
-    +22  4   random, fresh on every repeat (docs/sv.md, The Session join request)
-    +26  8   source constant id
-    +34  2   zero
-    +36  2   source variable id, fresh per session
-    +38  1   NAT mapping
-    +39  1   private-IPv6 flag
-    +40  32  identification token, zero on a codeless join
-    +72  1   address kind, 0 for IPv4
-    +73  4   source IPv4 address
-    +77  2   source port, 12345
-    +79  8   destination constant id
-    +87  2   zero
-    +89  2   destination variable id
-    +91  1   player count, 1
-    +92  1   a flag, 1
-    +93  22  one player record: id (two big-endian u64, 1 and 0), big-endian u32 name length 1,
-             kind byte 1, the name, a single space
+一个 115 字节的会话类型 0：类型字节、协议计数、十个 `(id, 版本)` 对，然后：
 
-location id 为 12 字节：大端序 u64 constant id、两个零字节、大端序 u16 variable id。消息标志为 `0x01`。`pokeldn.ldn.pia6.build_session_join` 再现了它（`tests/test_pla_session_v11.py`）。
+    +22  4   随机，每重复一次刷新 (docs/sv.md, The Session join request)
+    +26  8   源常量 ID
+    +34  2   零
+    +36  2   源变量 ID，每会话刷新
+    +38  1   NAT 映射
+    +39  1   私有 IPv6 标志
+    +40  32  身份识别令牌，无代码加入时为零
+    +72  1   地址类型，IPv4 为 0
+    +73  4   源 IPv4 地址
+    +77  2   源端口，12345
+    +79  8   目标常量 ID
+    +87  2   零
+    +89  2   目标变量 ID
+    +91  1   玩家数量，1
+    +92  1   标志，1
+    +93  22  一个玩家记录：ID (两个大端 u64, 1 和 0), 大端 u32 名称长度 1,
+             类型字节 1, 名称, 单个空格
 
-主机的 `ClusterPacketReader` 门 `0x744644`（vfunc `0x98`，在 `0x743ec0` 调用）会在其站点中查找单播数据包的源 variable id（`0x744718`），没有匹配时将其丢弃（`0x7447a8`）；目标为 0 或 1 且没有 footer 的包，或源 variable id 为 0 的包会跳过查找。join request 必须发往头部目标 0；发往主机 variable id 的 join request 在解密后会被丢弃。
+位置 ID 是 12 字节：大端 u64 常量 ID，两个零字节，大端 u16 变量 ID。消息标志是 `0x01`。`pokeldn.ldn.pia6.build_session_join` 复现它 (`tests/test_pla_session_v11.py`)。
 
-### Session 加入回复
+主机的 `ClusterPacketReader` 门 `0x744644` (vfunc `0x98`，在 `0x743ec0` 调用) 在其站点中查找单播数据包的源变量 ID (`0x744718`)，当没有匹配时丢弃 (`0x7447a8`)；目标为 0 或 1 且无页脚，或源变量 ID 为 0 的数据包跳过查找。加入请求必须发送到标头目标 0；如果发送到主机的变量 ID，则在解密后被丢弃。
 
-加入方在 `0x737534` 解析 ack，在 `0x7379c0` 解析 join response，这些从 `0x7353a0` 通过类型表 `0x3973f19` 分发。每个处理都会丢弃四个 id 不匹配的消息：主机的 id 是请求的 destination id，加入方的 id 则是其 source id。
+### 会话加入回复
 
-ack 是类型 1，25 字节：类型、主机 location id、加入方 location id。它会设置 `JoinMeshJob+0x69` 并把截止时间 `+0x80` 延长 8000 毫秒。join response 是类型 2，43 字节：
+加入者在 `0x737534` 解析 ack，在 `0x7379c0` 解析加入响应，由 `0x7353a0` 通过类型表 `0x3973f19` 分发。每个都丢弃四个 ID 不匹配的消息：主机的 ID 是请求的目标 ID，控制台的 ID 是其源 ID。
+
+ack 是类型 1，25 字节：类型、主机位置 ID、控制台位置 ID。它设置 `JoinMeshJob+0x69` 并将截止时间 `+0x80` 延长 8000 毫秒。加入响应是类型 2，43 字节：
 
     +0x00  1   02
-    +0x01  2   protocol id 0x98 and Session version, read only when status is 3
-    +0x03  1   status, 1 accepts
-    +0x04  8   unread on accept
-    +0x0c  12  host location id
-    +0x18  12  console location id
-    +0x24  2   route bytes, to self station +0x90, +0x91
-    +0x26  1   station index
-    +0x27  2   join order, big-endian
-    +0x29  2   sequence id, big-endian
+    +0x01  2   协议 ID 0x98 和会话版本，仅在状态为 3 时读取
+    +0x03  1   状态，1 表示接受
+    +0x04  8   接受时未读
+    +0x0c  12  主机位置 ID
+    +0x18  12  控制台位置 ID
+    +0x24  2   路由字节，到自身站点 +0x90, +0x91
+    +0x26  1   站点索引
+    +0x27  2   加入顺序，大端
+    +0x29  2   序列 ID，大端
 
-assignment 字段不校验（第一个加入方会得到路由 `00 01`、索引 1、顺序 1）。状态 1 会停止重发。当到达 `+0x29` 序列的类型 5 更新被应用时，加入完成；加入方会回复一个 13 字节的类型 6：类型、自己的 constant id、两个零字节、序列号。
+赋值字段不被验证（第一个加入者获得路由 `00 01`，索引 1，顺序 1）。状态 1 停止重复。加入在类型 5 更新到达 `+0x29` 的序列并被应用时完成；加入者回复一个 13 字节的类型 6：类型、自身常量 ID、两个零字节、序列。
 
 ### 类型 5 站点列表更新
 
-`0x7404a8` 在 `0x73897c` 读取之前重新组装它。分片头部为 7 字节：类型、大端序 u16 序列号、数量、索引、大端序 u16 偏移（单个分片时为 3）。主体：
+`0x7404a8` 在 `0x73897c` 之前重新组装它。分片标头是 7 字节：类型、大端 u16 序列、计数、索引、大端 u16 偏移 (单分片为 3)。主体：
 
     +0x00  1   05
-    +0x01  2   sequence id
-    +0x03  8   host constant id
-    +0x0b  4   host variable id as [0000, u16]
-    +0x0f  1   station count, at most 0x18
-    +0x10  n   IPv6 bitmap, (count + 31) / 32 * 4 bytes, little-endian words
-       ...     station entries (0x739050), IPv4 form:
-    +0x00  8   constant id         +0x15  2   join order
-    +0x08  4   [0000, u16] var id  +0x17  1   NAT mapping
-    +0x0c  4   IPv4 address        +0x18  1   private-IPv6 flag
-    +0x10  2   port                +0x19  32  identification token
-    +0x12  1   route byte A        +0x39  1   player count
-    +0x13  1   route byte B        +0x3a  1   participant count
-    +0x14  1   station index       +0x3b  ..  player records (16-byte id, u32 name length,
-                                              encoding byte, name)
+    +0x01  2   序列 ID
+    +0x03  8   主机常量 ID
+    +0x0b  4   主机变量 ID 作为 [0000, u16]
+    +0x0f  1   站点计数，最多 0x18
+    +0x10  n   IPv6 位图，(计数 + 31) / 32 * 4 字节，小端字
+       ...     站点条目 (0x739050)，IPv4 形式：
+    +0x00  8   常量 ID         +0x15  2   加入顺序
+    +0x08  4   [0000, u16] var id  +0x17  1   NAT 映射
+    +0x0c  4   IPv4 地址        +0x18  1   私有 IPv6 标志
+    +0x10  2   端口             +0x19  32  身份识别令牌
+    +0x12  1   路由字节 A        +0x39  1   玩家计数
+    +0x13  1   路由字节 B        +0x3a  1   参与者计数
+    +0x14  1   站点索引          +0x3b  ..  玩家记录 (16 字节 ID, u32 名称长度,
+                                              编码字节, 名称)
 
-IPv6 站点用 18 字节地址代替 6 字节。主机为路由 `00 00`、索引 0、顺序 0。`0x738bc0` 按 constant id 更新或创建每个站点。加入后的主机会接着运行 RTT、Clone Clock 和 Stream Broadcast Reliable 流。
+IPv6 站点以 18 字节地址代替六字节。主机的路由是 `00 00`，索引 0，顺序 0。`0x738bc0` 通过常量 ID 更新或创建每个站点。一个已加入的控制台然后运行 RTT、Clone Clock 和 Stream Broadcast Reliable 流。
 
 ### 主机迁移
 
-| 加入方 | 主机 |
+一个正在交易的主机不回答发送到其变量 ID 的加入请求，并要求已加入的站点担任主机角色：
+
+| 加入者 | 控制台 |
 |---|---|
-| 用 0x12 回复 0x11 | 再次 0x11，`is migrating host` 置 1，然后大约每秒两次 `01 40 00 00`（`NetStartHostMigrationMessage`） |
-| 发送 join request，从不回复 0x11 | 每 0.5 秒 0x11，然后 migrating，再 0x40，然后网络断开 |
-| 回复 `NetUpdateNetworkHostMessage` | 继续重复 0x40 |
+| 用 0x12 回答 0x11 | 再次 0x11，`is migrating host` 1，接着 `01 40 00 00` (`NetStartHostMigrationMessage`) 大约每秒两次 |
+| 发送加入请求，从不回答 0x11 | 每 0.5 秒 0x11，接着迁移，接着 0x40，接着网络断开 |
+| 用 `NetUpdateNetworkHostMessage` 回答 | 继续重复 0x40 |
 
-托管网络的主机离开时总是迁移（`NetProtocol+0x248`，由其构造函数置 1）：`NetDestroyNetworkJob`（`0x7069d0`）发送 migrating 0x11，等待最多 4000 毫秒接收每个 0x12，每 300 毫秒发送 0x40 持续 4000 毫秒（在未确认的 0x11 之后再过 2000 毫秒），然后销毁网络。`LeaveMeshWithHostMigrationJob`（`0x73eee4`）先轮询最多 8000 毫秒以寻找下一台主机；路由字节位于 0xfd 的站点永远不符合条件。
+一个正在主机的控制台离开总是会迁移 (`NetProtocol+0x248`，由其构造函数设为 1)：`NetDestroyNetworkJob` (`0x7069d0`) 发送迁移的 0x11，等待最多 4000 毫秒等待每个 0x12，发送 0x40 每 300 毫秒持续 4000 毫秒 (2000 毫秒在未确认的 0x11 之后)，然后销毁网络。`LeaveMeshWithHostMigrationJob` (`0x73eee4`) 首先轮询最多 8000 毫秒等待下一个主机；路由字节为 0xfd 的站点从不符合条件。
 
-当主机的 WaitMember 在 join 被接受之前结束时，会出现指定接班人的类型 7，如同《朱》（[docs/sv.md](sv.md#what-decides-a-seat)）中一样；`bin/pla_join.py --join-delay 4.5` 会引出它。主机会每秒重发一次，直到收到类型 8。类型 8 处理函数 `0x739b08` 只接受第二个 location id 是本主机 location id 的 25 字节消息；当第一个 location id 等于 `+0x68` 处的目标时，`0x73f0a8` 会设置任务的完成标志 `+0xb0`：
+命名后继的类型 7 消息出现当控制台的 WaitMember 在加入被接受之前结束，如朱／紫 ([docs/sv.md](sv.md#what-decides-a-seat))；`bin/pla_join.py --join-delay 4.5` 绘制它。控制台每秒重发一次直到类型 8。类型 8 处理器 `0x739b08` 只接受一个 25 字节的消息，其第二个位置 ID 是控制台的；`0x73f0a8` 在第一个等于 `+0x68` 目标时设置作业的完成标志 `+0xb0`：
 
-    08 | joiner location id (12) | host location id (12)
+    08 | 加入者位置 ID (12) | 主机位置 ID (12)
 
-新主机通过在同一网络代码上创建网络来完成迁移；原主机会以加入方身份加入并进行连接交换。`bin/pla_join.py` 会在收到第一个 0x40 时离开座位，并在同一网络代码和频道上运行 `bin/pla_host.py`，或使用 `--ip-join`（`--take-host`，默认开启）通过 IP 运行。
+新主机通过在相同代码上创建网络完成迁移；控制台加入它并作为加入者交易。`bin/pla_join.py` 在第一个 0x40 上离开座位并在相同代码和频道上运行 `bin/pla_host.py`，或通过 IP 与 `--ip-join` (`--take-host`，默认开启)。
 
-## 静默站点检查
+## 静站检查
 
-每次 Session 更新（`0x73564c`）都会列出静默时间超过 `SessionProtocol+0xd8` 的站点，即 10000 毫秒（来自启动设置 `+0x28c`，无下限；传说 Z-A 设有 4000 毫秒下限）。再过 3000 毫秒后，主机会踢掉每个站点（`KickoutManageJob`），加入方也会将被列出的主机视为已离开。盒子画面中静默的主机大约 13 秒后会弹出同伴离开的提示。
+每个会话更新 (`0x73564c`) 列出每个静默超过 `SessionProtocol+0xd8` 的站点，即 10000 毫秒 (从启动设置 `+0x28c`，无下限；Z-A 有 4000 毫秒下限)。在此 further 3000 毫秒后，主机踢出每个 (`KickoutManageJob`)，加入者将列出的主机视为已离开。静默主机在盒子屏幕上大约在 13 秒时显示伙伴离开消息。
 
-## 游戏的读取器与前置处理阶段
+## 游戏的读取器与预处理阶段
 
-游戏在 `main+0x2ca4f30`（`0x741494`）处轮询其读取器：在共享一个处理程序表的 0x7C 和 0x80 上循环。消息的前八个字节是一个由两个 u32 组成的处理程序键；匹配的处理程序接收剩余数据，未匹配的键被丢弃。0x81 上的主机数据永远不会到达这里。游戏的九个 Pia 调用点只解析 0x68、0x7C 和 0x80；0x77 时钟流量由 Pia 自身处理。
+游戏在 `main+0x2ca4f30` (`0x741494`) 轮询其读取器：遍历 0x7C 和 0x80，共享一个处理程序表。一条消息的前八字节是两个 u32 的处理程序键；匹配的处理程序接收剩余部分，未匹配的键被丢弃。0x81 上的主机数据永远不会到达它。游戏的九个 Pia 调用点仅解析 0x68、0x7C 和 0x80；0x77 的时钟流量属于 Pia 自身。
 
-在搜索界面，表为空，每条消息都在未读状态下被清空；处理程序在流程步骤 0x1e（`0x2ca5264`）注册。
+在搜索屏幕时，表为空，所有消息都被无读取；处理程序在流程步骤 0x1e (`0x2ca5264`) 注册。
 
-交换流程是 `0x13d5bfc`（步骤 `[flow+0xa4]`，表 `0x397c118`）。步骤 0x17 构建匹配序列（`0x26bdcac`）；步骤 0x18 轮询它和网络菜单的页面结果（`0x13de870`）。该序列的步骤：
+交易流程为 `0x13d5bfc`（步骤 `[flow+0xa4]`，表 `0x397c118`）。步骤 0x17 构建匹配序列 (`0x26bdcac`)；步骤 0x18 轮询它和网络菜单的页面结果 (`0x13de870`)。该序列的步骤如下：
 
-    LoginRelayServer     looked up before the sequence is built; missing returns false
-    Matching             from TradeMatchmakingConfig (0x26be354)
-    DataExchangeStart    the two-round data exchange, 10.0 s deadline (0x26be3f0)
+    LoginRelayServer     在构建序列之前查找；缺失返回 false
+    Matching             来自 TradeMatchmakingConfig (0x26be354)
+    DataExchangeStart    两轮数据交换，10.0 秒截止 (0x26be3f0)
     OnCancelDataExchange
-    OnSuccess            the trade scene (0x26d5f64)
-    OnFailure            event 8, flow step 0x23 (table 0x397c134), the leave
+    OnSuccess            交易场景 (0x26d5f64)
+    OnFailure            事件 8，流程步骤 0x23 (表 0x397c134)，离开
     OnCancel
     Cleanup
 
-DataExchangeStart（`0x26c5288`）在已建立的会话上启动，并在至少两个站点的记录到达后完成；超过 10.0 秒（`0x26c6a94`）后，它会以 `net_contents::p2p::ErrorLeaveAnyone`（vtable `0x416c628`，`0x26c6d30`）失败。失败会执行 `0x13d654c -> 0x13d6384 -> 0x2c43d78 -> 0x2ca0a10 -> Session::LeaveAsync (0x72a6dc)`，然后显示错误 7 对话框；主机会随迁移离开。
+DataExchangeStart (`0x26c5288`) 在已建立的会话上开始，一旦至少两个站点的记录到达即完成；超过 10.0 秒 (`0x26c6a94`) 时失败，并返回 `net_contents::p2p::ErrorLeaveAnyone`（虚函数表 `0x416c628`, `0x26c6d30`）。该失败依次执行 `0x13d654c -> 0x13d6384 -> 0x2c43d78 -> 0x2ca0a10 -> Session::LeaveAsync (0x72a6dc)`，然后显示错误 7 对话框；主机离开时进行迁移。
 
-`Error::Timeout` 的唯一生产者是监视器 `0x2bdb754`，它在匹配的另外两个 WaitMember 步骤中被武装：25000 毫秒（`0x2bda24c`）和 `3000 + rand % 1000` 毫秒（`0x2c491b8`，目标是匹配记录的 `+0x22` 半字，在代码 00000000 下为 2）。当成员计数（`[Session+0xe0]`，Pia 会话成员列表）达到目标时，WaitMember 完成；没有任何东西会延长计时器。该列表包含本地站点和每个已接受的会话加入（在加入方上，每个类型 5 的站点）一个条目；单独的 LDN 关联或 Net 0x11 不被计入。没有成员的搜索会在该计时器上重新主持，每 2.4 到 4.3 秒创建一个带有新会话 ID 的新网络，因此加入方只有当前网络计时器的剩余时间可被计入。
+`Error::Timeout` 的唯一生产者是监视器 `0x2bdb754`，在匹配制作的两个 WaitMember 步骤中被激活：25000 毫秒 (`0x2bda24c`) 和 `3000 + rand % 1000` 毫秒 (`0x2c491b8`，目标是匹配制作记录的 `+0x22` 半字，代码为 00000000 时为 2)。WaitMember 在成员计数 (`[Session+0xe0]`，即 Pia 会话成员列表) 达到目标值时完成；没有任何机制延长该计时器。该列表保存本地站点和每个接受的 Session 加入条目（在加入者上，每个类型 5 的站点）；LDN 关联或 Net 0x11 单独不计入。一次没有成员的搜索会在该计时器上重新托管，每个新网络都有新的会话 ID，每 2.4 到 4.3 秒一次，因此加入者有剩余的一个网络计时器时间来被计数。
 
 ### 数据交换
 
-DataExchangeStart 等待在 Stream Broadcast Reliable（0x81）的端口 0 和 1 上进行两轮交换：每个站点用一条类型 0x0f 的消息打开流，用标志 0xa0 下的 44 字节 `0000002c ffff` 消息进行确认，并发送一条 74 字节的类型 0x1f 记录，其中携带以 `484b6264` 开头的 64 字节有效负载。该步骤在对端的第二轮记录上完成。加入方主机未经提示打开其流，并在主机之后发送其记录；主持方主机在加入方打开后首先发送。响应加入方主机打开的主持方主机会将端口 0 上的记录和端口 1 上自己的打开捆绑在一个数据包中；`bin/pla_host.py` 每次加入发送一次，若在无线传输中丢失则会以错误 7 结束。
+DataExchangeStart 等待在 Stream Broadcast Reliable (0x81) 上进行两轮交换，端口 0 和 1：每个站点以类型 0x0f 消息打开流，用标志 0xa0 下的 44 字节 `0000002c ffff` 消息确认，并发送一条 74 字节的类型 0x1f 记录，携载一个 64 字节的负载，以 `484b6264` 开头。该步骤在对等方的第二轮记录上完成。加入的控制台会在未收到提示时打开其流，并在主机之后发送其记录；托管的控制台会在加入者打开时首先发送。主机在收到控制台的打开时，将记录（端口 0）和其自身的打开（端口 1）捆绑在一个数据包中发送；`bin/pla_host.py` 每次加入时发送一次，若空中丢失则以错误 7 结尾。
 
-64 字节的有效负载是 139 字节记录（`pokeldn.pla.data_exchange`）的 zlib（4 KB 窗口，级别 5）压缩结果，位于 Pia 的 StreamData 头（[协议 0x81](pia.md#protocol-0x81-the-stream-broadcast-reliable-transfer-pia-6)）下的一个块：
+64 字节的负载是 139 字节记录 (`pokeldn.pla.data_exchange`) 的 zlib 压缩（4 KB 窗口，级别 5），位于 Pia 的 StreamData 标头下 ([Protocol 0x81](pia.md#protocol-0x81-the-stream-broadcast-reliable-transfer-pia-6))：
 
-    +0x00  1   StreamData kind, 1: first chunk
-    +0x01  1   transfer id, 0
-    +0x02  1   percent delivered, 0x64
-    +0x03  4   zero
-    +0x07  4   big-endian u32 0x80
-    +0x0b  128 the MyStatus block (PKHeX MyStatus8a): trainer id pair +0x1b, version +0x1f (47),
-               gender +0x20, language +0x22, UTF-16LE name +0x2b
+    +0x00  1   StreamData 类型，1：第一块
+    +0x01  1   传输 ID，0
+    +0x02  1   已发送百分比，0x64
+    +0x03  4   零
+    +0x07  4   大端序 u32 0x80
+    +0x0b  128 MyStatus 块 (PKHeX MyStatus8a): 训练师 ID 对 +0x1b，版本 +0x1f (47)，
+               性别 +0x20，语言 +0x22，UTF-16LE 名称 +0x2b
 
-游戏仅将块交给 Pia（`0x753554` 位于 `0x26bfd28`）。为接收玩家制作的礼物会读取主机的训练家（`data_exchange.read_trainer`，[为接收玩家制作](gift_simulated.md#made-for-the-receiving-player)）。
+游戏将该块单独交给 Pia (`0x753554` 在 `0x26bfd28`)。为接收玩家制作的礼物会读取控制台的训练师信息 (`data_exchange.read_trainer`，参见 [Made for the receiving player](gift_simulated.md#made-for-the-receiving-player))。
 
-块 +0x3c 是玩家的外貌，即开场 4x2 `grid_player` 的列号 + 4 × 行号（设置器 `0x1023f94`），列 2 和 3 为女性；它必须与 +0x15 处的性别一致。`data_exchange.build_record` 根据 `--gender` 发送 5（男性）或 7（女性）。块 +0x50 为 1，由初始化器 `0x10230e4` 写入。
+块 +0x3c 是玩家的外观，intro 的 4x2 `grid_player` 的列 4 x 行 (设置器 `0x1023f94`)，列 2 和 3 为女性；它必须与 +0x15 的性别一致。`data_exchange.build_record` 根据 `--gender` 发送 5 名男性，7 名女性。块 +0x50 为 1，由初始化器 `0x10230e4` 写入。
 
-## 维持网状网络
+## 维持网络网状结构
 
-RTT（0x58）为 11 字节：类型、八字节时间戳、两字节目标；类型为 1 且目标为 0 的回显会被接受。
+RTT (0x58) 为 11 字节：类型、八字节时间戳、两字节目标；带目标 0 的类型 1 回声会被接受。
 
-Stream Broadcast Reliable（0x81）承载 `pokeldn/ldn/reliable5.py` 窗口：9 或 13 字节的头，然后是数据，或者当数据标志清除时，为 `2 + 21 * count` 字节的批量确认（类型字节，位 0 读取；条目包含站点字节、u16 确认 ID、u16、16 字节掩码）。消费者（vf13 `0x742730`）读取自己站点索引处的条目，并要求其站点字节等于发送方的索引：例如，一个确认索引 1 处加入方的主机发送两个站点字节为 0 的条目。该 ID 通过 `0x74f0ec` 应用。主机的 0x81 消息携带序列号 1，因此主机确认 `ack_id 2`。
+Stream Broadcast Reliable (0x81) 承载 `pokeldn/ldn/reliable5.py` 窗口：9 或 13 字节的标头，随后是数据，或在数据标志清除时，`2 + 21 * count` 字节的批量确认 (类型字节，位 0 已读；条目为站点字节、u16 确认 ID、u16、16 字节掩码)。消费者 (vf13 `0x742730`) 在其自身的站点索引处读取条目，并要求其站点字节等于发送者的索引：主机在索引 1 确认加入者时发送两个站点字节为 0 的条目。该 ID 应用于 `0x74f0ec`。一个控制台的 0x81 消息携载序列 1，因此主机确认 `ack_id 2`。
 
-主机用 INITIALIZED 消息（标志 `0x0f`，序列号 1）打开其流；主机数据需要主机站点索引的目标位图位（位 1，计数 2）。
+控制台以 INITIALIZED 消息 (标志 `0x0f`，序列 1) 打开其流；主机数据需要控制台站点索引的目标位图位 (位 1，计数 2)。
 
-## 游戏的可靠频道
+## 游戏的可靠信道
 
-交换后，流程到达 `0x13d5cac`，它测试 `[net+0xb8] > 1`：状态 0 到 1 通过 `0x26d9170`，1 到 2 取决于 `[net+0x78]`，后者由接收处理程序 `0x26da310` 在 selector 1（`0x26da3a4`）上设置。
+交换后，流程到达 `0x13d5cac`，它检测 `[net+0xb8] > 1`：状态 0 到 1 通过 `0x26d9170`，1 到 2 在 `[net+0x78]` 上，由接收处理程序 `0x26da310` 在选择器 1 (`0x26da3a4`) 设置。
 
-调度器 `0x2ca4a88` 将消息键与每个频道的 `+0x6c` 进行匹配。存在两个频道：键 `00 00 00 00 00 00 00 00` 用于交换盒（`0x26d8c2c`），`01 00 00 00 00 00 00 00` 用于阶段协议（`0x26d7aa0`）。0x7c 的端口 0 和 1 是两个 Reliable 实例；端口 1 是频道表。
+调度器 `0x2ca4a88` 将消息的键与每个信道的 `+0x6c` 进行匹配。存在两个信道：键 `00 00 00 00 00 00 00 00` 对应交易盒 (`0x26d8c2c`)，键 `01 00 00 00 00 00 00 00` 对应阶段协议 (`0x26d7aa0`)。0x7C 的端口 0 和 1 是两个 Reliable 实例；端口 1 是信道表。
 
-两个端口都用 `reliable5` 流打开（无位图，发送到对端的可变 ID，序列号 1，以及 start、end 和 initialized 标志）；每一侧都会确认并送回相同内容：
+两个端口都以 `reliable5` 流打开 (无位图，指向对等方的可变 ID，序列 1，start、end 和 initialized 标志)；每一方都会确认并发送相同的内容返回：
 
-    port 0    key eight zero bytes      body 0100        the host opens it
-    port 1    b9 01 01 b9 02 b9 02 00 00 01              the joiner announces the zero key open
+    port 0    键八个零字节      主体 0100        主机打开它
+    port 1    b9 01 01 b9 02 b9 02 00 00 01              加入者宣布零键的打开
 
 ### 确认
 
-`ReliableSlidingWindow`（vtable `0xc5b4d98`）在 vf12 `0x74ee1c` 中构建其确认：ID 为接收窗口的 `+0x50`，在 16 字节掩码（`0x74ef18..0x74efb8`）中，每个保留条目对应一位；当 `[window+0x54]` 被设置时为空。vf13 `0x74efbc` 解析它（`0x742da0`），要求 `2 + 21 * count` 字节且条目的流字节等于 `+0x36`，并调用 `0x74f0ec(window, station, ack_id, mask)`。发送条目为 0x5d0 字节，序列号 `+0x24`，按站点的待处理位图 `+0x2c`：
+`ReliableSlidingWindow` (虚函数表 `0xc5b4d98`) 在 vf12 `0x74ee1c` 构建其确认：以接收窗口的 `+0x50` 为 ID，每个超出其之外的保存条目占一位，位于 16 字节掩码 (`0x74ef18..0x74efb8`) 中，`[window+0x54]` 设定时为空。vf13 `0x74efbc` 解析它 (`0x742da0`)，要求 `2 + 21 * count` 字节且条目的流字节等于 `+0x36`，并调用 `0x74f0ec(window, station, ack_id, mask)`。发送条目为 0x5d0 字节，序列 `+0x24`，每个站点的待处理位图 `+0x2c`：
 
-| entry sequence | pending bit |
+| 条目序列 | 待处理位 |
 |---|---|
-| below `ack_id` | cleared (`0x74f274`) |
-| equal | kept |
-| above | cleared when mask bit `seq - ack_id - 1` is set, offsets up to 0x7f (`0x74f280..0x74f2a8`) |
+| 低于 `ack_id` | 清除 (`0x74f274`) |
+| 等于 | 保留 |
+| 高于 | 当掩码位 `seq - ack_id - 1` 设定时清除，偏移量最多 0x7f (`0x74f280..0x74f2a8`) |
 
-| `ack_id` | effect |
+| `ack_id` | 效果 |
 |---|---|
-| 0 | nothing (`0x74f0fc`) |
-| below the base | sets `[window+0x4b8]` (`0x74f17c`, `0x74f2d0`) |
-| `base + count` (`[window+0x32]`) | releases everything |
-| beyond | vf6 `0x74f2e8`, a bare `ret`: ignored |
-| `0xffff` | applies the whole window (`0x74f104`) |
+| 0 | 无操作 (`0x74f0fc`) |
+| 低于基值 | 设置 `[window+0x4b8]` (`0x74f17c`, `0x74f2d0`) |
+| `base + count` (`[window+0x32]`) | 释放所有 |
+| 超出 | vf6 `0x74f2e8`，仅为 `ret`：忽略 |
+| `0xffff` | 应用整个窗口 (`0x74f104`) |
 
-该 ID 是累积的；掩码是 128 位小端整数的第 n 位（`pokeldn.ldn.reliable5.build_mask`）。
+该 ID 是累积的；掩码是 128 位小端整数的第 n 位 (`pokeldn.ldn.reliable5.build_mask`)。
 
-接收方根据每条消息的最低待处理字段（包括确认）移动其窗口基值（`0x74c250`）。切勿声明超过未确认消息的最低待处理值：其重传会落在基值以下被丢弃。
+接收方在每条消息的最低待处理字段上移动其窗口基值，包括确认在内 (`0x74c250`)。从未声明一个低于未确认消息的最低待处理：其重发会落到基值以下并被丢弃。
 
-`bin/pla_host.py` 和 `pokeldn.pla.joiner` 使用 `reliable5`（`SendWindow`、`ReceiveWindow`）：保留每条 0x7c 消息直到被确认，0.4 秒后以相同序列号和一个新的 nonce 重发，最多声明自己的最低未确认序列号，确认连续运行之后的一个，按顺序传递一次。加入方的 0x81 消息每 1 秒重发一次。主机在某端口上的第一条 0x7c 消息携带序列号 1（66 中的 66）。
+`bin/pla_host.py` 和 `pokeldn.pla.joiner` 使用 `reliable5` (`SendWindow`, `ReceiveWindow`)：保持每个 0x7c 消息直到确认，0.4 秒后重发并使用新的 nonce，声明最多自己的最小未确认序列，确认超过连续运行的序列之后一个，一次性按顺序交付。加入者的 0x81 消息每 1 秒重发一次。一个控制台在某个端口上的第一条 0x7c 消息携载序列 1 (66/66)。
 
-主机会同样地每 33 毫秒 + 1.4 × 最大往返时间（`0x74d06c`）重发 0x7c 和 0x81（`0x74c9c8`），没有重试上限，直到收到窗口内的确认或站点离开。
+控制台同时重发 0x7c 和 0x81 (`0x74c9c8`)，每 33 毫秒 + 1.4 倍最大往返时间 (`0x74d06c`)，无重试限制，直到收到窗口内的确认或站点离开。
 
-## 端口 1 上的频道表
+## 端口 1 上的信道表
 
-0x7c 的端口 1 承载频道表：每个站点通告其已打开的处理程序键，且站点只有在对端通告该键已打开后才在该键上发送。
+0x7C 的端口 1 承载信道表：每个站点宣布其已打开的处理程序键，而站点仅在其对等方宣布已打开后才在该键上发送。
 
-表对象（`0x2ca36f0`，vtable `0x41997d8`）保存自己的频道（`+0xa0`）和对端已通告的频道（`+0xd8`），每个条目为八字节键和站点掩码；帧轮询 `0x2ca82d0` 负责发送和接收。
+该表对象 (`0x2ca36f0`, 虚函数表 `0x41997d8`) 保存其自身的信道 (`+0xa0`) 和对等方宣布的信道 (`+0xd8`)，每个条目为八字节键和一个站点掩码；帧轮询 `0x2ca82d0` 负责发送和接收。
 
-发送方将现有频道通告为打开，将已销毁的频道通告为关闭。接收方（`0x2ca9800`）在打开时将发送方的位 OR 到对端条目中，在关闭时清除该位，并为未知键追加条目；收集器会清除零掩码条目，离开站点的位会在各处被清除（`0x2ca90e0`）。创建的频道（`0x2bcb8c8 -> 0x2ca5264 -> 0x2ca3024`）在 `+0xb8` 处保留表的接口。每个频道发送方都会询问接口槽 3（`0x2ca92e0`，通过 `0x2ca9360`）对端是否通告了其键，并且仅在得到肯定回答时才发送：如果主机在端口 1 上保持沉默，交换界面就会一直等待。
+发送方将已存在的信道宣布为已打开，将已销毁的信道宣布为已关闭。接收方 (`0x2ca9800`) 在打开时将发送方的位 OR 进对等条目，在关闭时清除它，并为未知的键附加一个条目；收集器擦除零掩码条目，并在所有地方清除离开站点的位 (`0x2ca90e0`)。一个新创建的信道 (`0x2bcb8c8 -> 0x2ca5264 -> 0x2ca3024`) 保持表的接口在 `+0xb8`。每个信道发送方都会询问接口槽 3 (`0x2ca92e0`, 通过 `0x2ca9360`)，即对等方是否宣布了其键，并仅在肯定时发送：主机在端口 1 上保持静默，会使交易屏幕一直等待。
 
-消息是游戏的带标记序列化：小于 0x80 的整数是它自身的一个字节；0x80 到 0x83 作为前缀，后跟小端 1、2、4、8 字节值（写入器 `0x2661ec4`、`0x26619cc`、`0x2661f78`）。大小表 `0x397dfcc` 为 0x84 到 0x87 分配相同宽度，0x88 四字节，0x89 八字节，0xb5 到 0xbf 一字节。0xb9 打开一个元组，后面跟着字段计数。
+一条消息是游戏的标记序列化格式：一个小于 0x80 的整数是其自身的字节；0x80 到 0x83 前缀一个小端序 1、2、4、8 字节的值 (写入函数 `0x2661ec4`, `0x26619cc`, `0x2661f78`)。大小表 `0x397dfcc` 赋予 0x84 到 0x87 相同的宽度，0x88 为四字节，0x89 为八字节，0xb5 到 0xbf 为一字节。0xb9 打开一个元组，后面跟字段计数。
 
-    b9 01  NN  { b9 02  b9 02 LO HI  01|00 }    list of NN (key as two u32, open 1 / closed 0)
+    b9 01  NN  { b9 02  b9 02 LO HI  01|00 }    NN 个键的列表 (作为两个 u32，打开 1 / 关闭 0)
 
-| message | meaning | when |
+| 消息 | 含义 | 何时 |
 |---|---|---|
-| `b9 01 01 b9 02 b9 02 00 00 01` | trade box key open | with the port-1 open, at the trade step |
-| `b9 01 01 b9 02 b9 02 01 00 01` | phase key open | after the confirmation, when `0x26d7aa0` creates it |
-| `b9 01 01 b9 02 b9 02 01 00 00` | phase key closed | once the trade is written |
+| `b9 01 01 b9 02 b9 02 00 00 01` | 交易盒键打开 | 与端口 1 的打开一起，在交易步骤中 |
+| `b9 01 01 b9 02 b9 02 01 00 01` | 阶段键打开 | 在确认之后，当 `0x26d7aa0` 创建它时 |
+| `b9 01 01 b9 02 b9 02 01 00 00` | 阶段键关闭 | 一旦交易被写入 |
 
-`pokeldn.ldn.channel_table` 构建并解析这些内容。主机对每个键的每次打开只响应一次，并让关闭消息不被回应，因此其常设条目可为下一次交换服务。
+`pokeldn.ldn.channel_table` 构建并解析这些消息。主机每次在某个键上打开时回答一次，并对关闭保持沉默，因此其现有的条目可服务于下一次交易。
 
-## 交换盒
+## 交易盒
 
-在端口 0 的零键之后，处理程序 `0x26da310` 读取一个选择器和一个计数器，通过 `0x397e388` 进行切换，丢弃任何大于 7 的值，并且除非其第四个参数等于 `[net+0x88]`（即伙伴）否则中止。
+在端口 0 后、零键之后，处理程序 `0x26da310` 读取一个选择器和一个计数器，切换通过 `0x397e388`，丢弃任何超过 7 的内容，并在其第四个参数不等于 `[net+0x88]` (即合作伙伴) 时中止。
 
-    1   ready                0x26da3a4   sets [net+0x78]; the port-0 open body 01 00, once a session
-    2   showing a Pokemon    0x26da3f0   stored at [net+0x98] by 0x26da1d8
-    3   showing no record    0x26da430   -> 0x26d93c8
-    4   offering a Pokemon   0x26da3b0   stored at [net+0xb0] by 0x26da23c, phase 0xbc := 3
-    5   confirmed            0x26da43c   counter check, -> 0x26da2c0
-    6   withdrawn            0x26da458   state 4|5 := 3, phase 0xbc := 2, counters moved
-    7                        0x26da49c   counter check, phase 0xbc := 5
+    1   准备就绪                0x26da3a4   设置 [net+0x78]；端口 0 打开主体 01 00，一次性会话
+    2   显示宝可梦    0x26da3f0   由 0x26da1d8 存储在 [net+0x98]
+    3   显示无记录    0x26da430   -> 0x26d93c8
+    4   提供宝可梦   0x26da3b0   由 0x26da23c 存储在 [net+0xb0]，阶段 0xbc := 3
+    5   已确认        0x26da43c   计数器检查，-> 0x26da2c0
+    6   撤回          0x26da458   状态 4|5 := 3，阶段 0xbc := 2，计数器移动
+    7                        0x26da49c   计数器检查，阶段 0xbc := 5
 
-`0x26d9458` 发送选择器 2，并携带光标下的记录（来自 `0x2b65514` 的 0x178 字节），或发送选择器 3，不带正文表示空槽（`03 00`）。选择器 2 和 4 携带相同的正文；只有 4 会推进阶段。主机必须以提议回应提议：如果用显示回应提议，主机就会显示一个空的伙伴六边形。
+`0x26d9458` 发送选择器 2，携带光标下的记录 (从 `0x2b65514` 获取的 0x178 字节)，或发送选择器 3，主体为空用于空槽 (`03 00`)。选择器 2 和 4 携带相同的主体；只有 4 会推动阶段前进。主机必须用提供回答一个提供：若回答为显示，则控制台显示一个空的合作伙伴六边形。
 
-选择器 6 撤回一个提议或确认（发送方 `0x26d9898`，计数器 `[net+0xf8] + 1`）。接收端将状态返回为 3 且不发送任何内容：被回显的 6 会取消主机的确认。
+选择器 6 取回一个提供或确认 (发送方 `0x26d9898`，计数器 `[net+0xf8] + 1`)。接收端将状态恢复为 3 并不发送任何内容：一个回送的 6 会取消控制台的确认。
 
-正文（`0x26dac6c`、`0x26662fc`、`0x26dacbc`）：
+主体 (`0x26dac6c`, `0x26662fc`, `0x26dacbc`)：
 
-    0x00  1   selector
-    0x01  1   counter, 0 on both record-carrying selectors
+    0x00  1   选择器
+    0x01  1   计数器，0 在两个记录携带的选择器上
     0x02  1   0xbc
     0x03  1   0x81
-    0x04  2   record length, 0x178
-    0x06  376 the record
+    0x04  2   记录长度，0x178
+    0x06  376 记录
 
-390 字节位于九字节头之下，标志 0x07，序列号 2。它只取决于存档，因此一次捕获可以重放。
+在九字节标头下，共 390 字节，标志 0x07，序列 2。它仅依赖存档，因此一次捕获可以重放。
 
-该记录是第八世代实体（`pokeldn.gen8` 头、LCG、块置换、16 位校验和），具有 0x58 字节的块：0x168 存储，0x178 在队伍中。解密时按原样应用 `gen8.BLOCK_ORDER[(ec >> 13) & 31]`，加密时反转；校验和无法区分两者，但名称可以（昵称在 0x60，训练家名称在 0x110）。0x0c 处的训练家 ID 和训练家名称正是数据交换所携带的内容。
+该记录是 Gen-8 实体 (`pokeldn.gen8` 标头、LCG、块排列、16 位校验和)，带有 0x58 字节的块：0x168 存储，0x178 在队伍中。`gen8.BLOCK_ORDER[(ec >> 13) & 31]` 在解密时直接应用，在加密时逆向应用；校验和无法区分两者，名称可以 (昵称在 0x60，训练师名称在 0x110)。0x0c 的训练师 ID 和训练师名称是数据交换中携带的那些。
 
-## 确认交换
+## 确认交易
 
-交换会发送选择器 5 和 `[net+0xf8]`。发送方 `0x26d9770` 要求状态为 3 并设为 4。消费方 `0x26da2c0` 设置阶段 4，并且当状态已经是 4 时分配 `[net+0xc8]`：第二台确认的站点继续。选择器 5 和 7 将计数器降到 `[net+0xfa]` 以下（`0x26da440`、`0x26da4a0`）。然后本机在端口 1 上宣告阶段键打开，并停在阶段 5 等待，直到主机也宣告它。
+交易发送选择器 5 和 `[net+0xf8]`。发送方 `0x26d9770` 需要状态 3 并设置 4。消费方 `0x26da2c0` 设置阶段 4，并当状态已为 4 时分配 `[net+0xc8]`：第二个确认站点继续进行。选择器 5 和 7 将计数器降至 `[net+0xfa]` 以下（`0x26da440`，`0x26da4a0`）。控制台随后在端口 1 上公告阶段密钥开启并等待至阶段 5，直到主机也宣布为止。
 
-`0x26d9094` 的滴答会移动 `[net+0xb8]`：
+tick `0x26d9094` 移动 `[net+0xb8]`：
 
-    0     if [net+0x90] is set, 0x26d9170 -> 1
-    1     once [net+0x78] is set, one store of 0x200000002: state 2, phase [net+0xbc] 2
-    3, 4  while [net+0xc0]: past 1.5 s on [net+0xc8] with phase 4 or 5, 0x26d9254 sends
-          selector 7, state 5
-    5     finished; the save is untouched until the job below
+    0     如果 [net+0x90] 已设置，0x26d9170 -> 1
+    1     一旦 [net+0x78] 已设置，存储一次 0x200000002：状态 2，阶段 [net+0xbc] 2
+    3, 4  当 [net+0xc0] 存在：在 [net+0xc8] 上超过 1.5 秒且阶段为 4 或 5，0x26d9254 发送
+          选择器 7，状态 5
+    5     完成；保存文件在以下作业执行前保持不变
 
-## 执行交换的任务
+## 执行交易的作业
 
-该任务（`0x26d9a90`，虚表 `0x416c8f8`，更新 `0x26dc71c`，执行器 `[job+0x130]`）携带提供的记录 `[net+0xb0]`。
+作业（`0x26d9a90`，虚函数表 `0x416c8f8`，更新 `0x26dc71c`，执行器 `[job+0x130]`）携带提供的记录 `[net+0xb0]`。
 
-| 状态 | 行为 |
+| 状态 | 操作 |
 |---|---|
-| 1 | 发送阶段 3（`0x26d7d8c`）；仅在发送成功时进入状态 2 |
+| 1 | 发送阶段 3（`0x26d7d8c`）；仅当发送成功时才进入状态 2 |
 | 2 | 等待主机的 `02 03`（`0x26d7e5c`） |
-| 3 | 设置并保存交换限制（vf `+0x50` `0x26dd910`） |
+| 3 | 交易限制已设置并保存（虚函数 `+0x50` `0x26dd910`） |
 | 4, 5 | 发送阶段 6，等待 `02 06` |
-| 6 | 应用交换，清除限制（vf `+0x58`） |
-| 7 至 10 | 发送 `0x0b`（在状态 9 中随机等待 2 到 302 帧后），等待 `02 0b` |
-| 11, 12 | 提交存档（`nn::fs::Commit`），发送 `0x0e` |
+| 6 | 交易已应用，限制已清除（虚函数 `+0x58`） |
+| 7 至 10 | 发送 `0x0b`（在状态 9 中随机等待 2 至 302 帧后），等待 `02 0b` |
+| 11, 12 | 提交保存（`nn::fs::Commit`），发送 `0x0e` |
 | 13 | 等待 `02 0e` |
 | 14 | 成功（`[net+0xb8] = 6`）或失败（7） |
 
-发送闸门失败的任务会在下一次更新时重试；处于状态 1 或 2 的任务没有超时，并显示 `msg_ui_box_p2ptrd_09`“正在通信。请稍候……”。它仅会因取消请求 `0x26dc640` 而结束，该请求来自场景监视器 `0x1109d00`（当发生会话错误或伙伴离开且站点数低于 2 时），或者来自模式 9。本机在等待期间没有未完成的事项：主机会重新发送其在空中丢失的十一个应答中的任意一个（端口 0 打开、两个通道打开、展示、提供、选择器 5 和 7、四个阶段）。
+发送门失败时在下一次更新重试；处于状态 1 或 2 的作业没有超时并显示 `msg_ui_box_p2ptrd_09`，"通信中，请稍候..."。它仅通过取消请求 `0x26dc640` 结束，来自场景监视器 `0x1109d00` 在会话错误或伙伴离开时（站点计数低于 2），或来自模式 9。控制台在等待时没有任何未完成的操作：主机会重新发送其十一个答案中任何在空中丢失的（端口 0 开启、两个频道开启、显示、提供、选择器 5 和 7、四个阶段）。
 
-在状态 `0x3ff7 >> state & 1`（0 到 2、4 到 13）中接受取消。在阶段 2 到 4 取消时，执行器会先完成保存；只有设置了 `[executor+0xb0]` 时，vf `+0x48` `0x26dd5f8` 才会写入，并在状态 6 完成。在状态 1 或 2 取消的任务不写入任何内容。
+取消在状态 `0x3ff7 >> state & 1`（0 至 2，4 至 13）时采取。取消于阶段 2 至 4 时，执行器会先完成保存；虚函数 `+0x48` `0x26dd5f8` 仅在 `[executor+0xb0]` 已设置时写入，于状态 6 完成。处于状态 1 或 2 时取消的作业不写入任何内容。
 
-## 交换限制
+## 交易限制
 
-限制是存档块 `0x96993D83` 中位于 `[game manager+0x2b8]`（虚表 `0x40f2048`）的对象字段 `+0x70` 处的一个 u64 分钟计数。块 `0x24E0D195`（字段 `+0x78`，0x2F2 字节）保存一个标志字节，然后是最近交换进来的记录。
+该限制是保存块 `0x96993D83` 中一个 u64 分钟计数，位于 `[game manager+0x2b8]` 对象的 `+0x70` 字段（虚函数表 `0x40f2048`）。保存块 `0x24E0D195`（字段 `+0x78`，0x2F2 字节）保存一个标志字节，然后是最近交易的记录。
 
-`+0x78` 字节标记尚未放置的收到记录：在任务状态 6 时设置（`0x10251c8`，记录位于 `+0x79`，进化形态位于 `+0x1f1`），由 `0x26dcc74` 清除——后者放置记录、将其登记到图鉴并保存。
+位于 `+0x78` 的字节标记一个尚未放置的接收记录：在作业状态 6 时设置（`0x10251c8`，记录位于 `+0x79`，进化形式位于 `+0x1f1`），由 `0x26dcc74` 清除，该函数放置记录、在图鉴中注册并保存。
 
-| 位置 | 调用者 | 值 | 时机 |
+| 位置 | 调用者 | 值 | 何时 |
 |---|---|---|---|
-| `0x26dd9a0` | vf `+0x50`，任务状态 3 | 10 | 在伙伴的 `02 03` 之后，两条记录中的任意一个移动之前 |
-| `0x26ddaf0` | vf `+0x58`，任务状态 6 | 0 | 交换被应用时 |
-| `0x26dd704` | vf `+0x48`，取消 | 10 | 仅在 `[executor+0xb0]` 设置时 |
-| `0x26bd5d0` | 计时器 `0x26bd434` | 减 1 | 每 60 秒 |
+| `0x26dd9a0` | 虚函数 `+0x50`，作业状态 3 | 10 | 在伙伴的 `02 03` 之后，任一记录移动之前 |
+| `0x26ddaf0` | 虚函数 `+0x58`，作业状态 6 | 0 | 交易已应用 |
+| `0x26dd704` | 虚函数 `+0x48`，取消 | 10 | 仅当 `[executor+0xb0]` 已设置 |
+| `0x26bd5d0` | ticker `0x26bd434` | 减 1 | 每 60 秒 |
 
-状态 3 在设置 10 之后保存。在状态 3 之前停止的交换不会产生限制；在状态 3 之后、状态 6 后的保存之前停止则会在存档中留下 10。
+状态 3 在设置 10 后保存。交易在状态 3 之前停止不会产生限制；在状态 3 之后至状态 6 后保存之间停止则会在保存中留下 10。
 
-计时器（`0x26bd434`）每 60.0 秒的 OS 滴答（`0x26bd5b4`）递减一次：游戏运行十分钟可将其清零。时钟设置不起作用，游戏关闭时的时间不计算在内。
+ticker（`0x26bd434`）每 60.0 秒的 OS tick（`0x26bd5b4`）递减一次：游戏运行十分钟后清零。时钟设置不起作用，游戏关闭时的时长不计入。
 
-当计数非零时，连接交换的伙伴菜单（`0x13d55fc`、`0x13d56ac`）会显示 `common/net` 的 `matching_win_03`（上次连接中断）而不是警告 `matching_win_06`。
+当计数非零时，Link Trade 的伙伴菜单（`0x13d55fc`，`0x13d56ac`）显示 `common/net` `matching_win_03`（上次连接已中断），而非警告 `matching_win_06`。
 
 ## 阶段协议
 
-任务在键 `01 00 00 00 00 00 00 00` 上宣告阶段，该键在任务创建时注册。宣告对象保存三个标志/半字对：
+作业在密钥 `01 00 00 00 00 00 00 00` 上公告阶段，作业创建时注册。公告对象保存三个标志/半字对：
 
-    [obj+0x94] / [obj+0x96]   own announced phase, written by 0x26d7d8c (selector 1)
-    [obj+0x98] / [obj+0x9a]   the peer's, on receiving selector 1
-    [obj+0x90] / [obj+0x92]   written by 0x26d7e84 (selector 2), and on receiving selector 2
+    [obj+0x94] / [obj+0x96]   自己的公告阶段，由 0x26d7d8c 写入（选择器 1）
+    [obj+0x98] / [obj+0x9a]   对方的，在收到选择器 1 时
+    [obj+0x90] / [obj+0x92]   由 0x26d7e84 写入（选择器 2），在收到选择器 2 时
 
-接收处理程序 `0x26d7f90` 镜像发送方的行为；选择器 0 中止。消息由选择器和阶段组成。`0x26d7e5c(obj, n)` 返回 `[obj+0x92] == n` 且 `+0x90` 已设置。
+接收处理器 `0x26d7f90` 镜像发送方；选择器 0 中止。消息是选择器和阶段。`0x26d7e5c(obj, n)` 返回 `[obj+0x92] == n` 且 `+0x90` 已设置。
 
-选择器 2 由主机发送：只有满足 `[obj+0x78]` 后才能到达 `0x26d7e84`，而 `[obj+0x78]` 在任务创建时由 `0x26d7aa0` 设置——当该站点是会话的主机时。加入者的任务只有在主机的选择器 2 之后才会离开状态 2；只镜像选择器 1 的主机会让交换界面一直等待。
+选择器 2 是主机发送的：`0x26d7e84` 仅在 `[obj+0x78]` 之后可达，该值在作业创建时由 `0x26d7aa0` 设置，当站点是会话的主机时。一个加入者的作业仅在主机的选择器 2 到来后离开状态 2；一个仅镜像选择器 1 的主机则留在交易屏幕上等待。
 
-一个站点在端口上发出的每条消息（包括镜像）都占用自己的下一个序列 id；重新使用对方 id 的镜像会被确认，但一旦计数出现偏差就会被丢弃。
+每个站点在端口上发起的消息，包括镜像，都使用自己的下一个序列号；重用对方 ID 的镜像会被确认但在计数 diverge 后丢弃。
 
-## 交换完成
+## 完成的交易
 
-本机宣告 3、6、0xb 和 0xe；主机各自用选择器 2 和相同阶段来应答：
+控制台公告 3、6、0xb 和 0xe；主机以选择器 2 和相同阶段回答每个：
 
-    <-  0x7c p0  01 03      ->  01 03   the mirror     ->  02 03   the host's
+    <-  0x7c p0  01 03      ->  01 03   镜像     ->  02 03   主机的
     <-  0x7c p0  01 06      ->  02 06
     <-  0x7c p0  01 0b      ->  02 0b
     <-  0x7c p0  01 0e      ->  02 0e
 
-动画结束后，盒子将主机玩家称为原始伙伴。八个存档文件发生变化：两个槽位中的 `main`、`main2`、`backup`，以及两个 ExtraData 文件。然后本机发送一个全新的选择器 2，主机用一个展示来应答，然后阶段键关闭，不进行回应。
+动画结束后，箱子将主机玩家命名为原始伙伴。八个保存文件改变：两个插槧中的 `main`、`main2`、`backup`，以及两个 ExtraData 文件。随后控制台发送一个新的选择器 2，主机以一个显示回答，并关闭阶段密钥，未被回答。
 
-## 同一会话中的第二次交换
+## 一次会话中的第二笔交易
 
-在完成一次交换后，场景会重置交换对象（`0x26d8fd0`，位于 `0x110aa04`）：释放任务输入和记录、释放任务、状态和阶段设为 2、计数器 `[net+0xf8]` 清零。`[net+0x78]` 和 `[net+0x88]` 被保留：下一轮从状态 2 开始，不发送新的选择器 1。
-场景（更新 `0x1109a68`，模式 `[scene+0xb0]`：0 盒子，5 交换，6 伙伴离开，7 和 8 会话错误，9 离开）在会话保持的情况下返回模式 0。`0x10fb178` 清除盒子控制器的有效标志，因此盒子会发送新的展示；否则只有光标移动时才发送一个。
+完成交易后，场景重置交易对象（`0x26d8fd0`，位于 `0x110aa04`）：释放作业输入和记录，释放作业，状态和阶段为 2，计数器 `[net+0xf8]` 清零。`[net+0x78]` 和 `[net+0x88]` 保留：下一轮从状态 2 开始，无需新的选择器 1。
+场景（更新 `0x1109a68`，模式 `[scene+0xb0]`：0 箱子，5 交易，6 伙伴离开，7 和 8 会话错误，9 离开）返回到模式 0，保持会话开启。`0x10fb178` 清除箱子控制器的有效标志，因此箱子发送一个新的显示；否则它仅在光标移动时发送一次。
 
-下一个任务再次使用键 1 创建其阶段通道并使用相同阶段。第二次交换逐字节重复 `05 00`、`07 00`、阶段以及阶段键打开；只有序列 id 不同，所以按消息体去重的对端不会应答其中任何一条。应答了本机关闭的主机会让第二条 `01 03` 留在闸门中：任务处于状态 1，没有超时，没有限制。
+下一个作业使用密钥 1 再次创建其阶段通道，并使用相同的阶段。第二笔交易重复 `05 00`、`07 00`、阶段和阶段密钥开启，逐字节相同；只有序列号不同，因此通过主体去重的对等端不会回答任何一个。一个主机如果回答了控制台的关闭，则会在第二次 `01 03` 被困在门中：作业处于状态 1，无超时，无限制。
 
-## 交换改写的内容
+## 交易重写的内容
 
-收到的记录与发送的记录在以下字段上有所不同（对于以 70 级队伍尾部发送的 50 级记录，共有 23 字节）：
+一个接收到的记录与发送的记录在以下字段上有所不同（等级 50 记录配上等级 70 队伍尾部为 23 字节）：
 
-    0x006  2   checksum
-    0x092  1   current HP
-    0x0b8  26  handling trainer's name, the receiver's own
-    0x0d3  1   handling trainer's language (3 French, 2 English)
-    0x0d4  1   current handler, 1
-    0x0d8  1   handling trainer's friendship, the species' base friendship
-    0x16a  12  the six party stats, recomputed
+    0x006  2   校验和
+    0x092  1   当前 HP
+    0x0b8  26  处理训练家的名字，接收者自己的
+    0x0d3  1   处理训练家的语言（3 法语，2 英语）
+    0x0d4  1   当前处理者，1
+    0x0d8  1   处理训练家的友好度，物种基础友好度
+    0x16a  12  六个队伍属性，重新计算
 
-高于等级的相遇等级得以保留。块起始地址是 `pokeldn.gen8` 的起始地址加上每个前置块的八个字节：昵称 0x60、处理训练家姓名 0xb8、训练家姓名 0x110、队伍尾部 0x168。第一个块除招式（0x54，PP 0x5c）外与第八世代相同；第二个加 8，第三个加 0x10，第四个加 0x18，并将球放在相遇日期之后。`pokeldn/pla/trade_box.py` 和 `pokemon.py` 可以逐字节再现本机的数据。
+保留超过等级的等级。块起始为 `pokeldn.gen8` 加上每个前序块 8 字节：昵称 0x60，处理训练家名字 0xb8，训练家名字 0x110，队伍尾部 0x168。第一个块是 Gen 8 的，除了招式（0x54，PP 0x5c），第二个加 8，第三个加 0x10，第四个加 0x18，球在相遇日期之后。`pokeldn/pla/trade_box.py` 和 `pokemon.py` 复现控制台的字节。
 
 ## 选择要提供的内容
 
@@ -424,133 +425,140 @@ Stream Broadcast Reliable（0x81）承载 `pokeldn/ldn/reliable5.py` 窗口：9 
 | 偏移 | 字段 | 偏移 | 字段 |
 |---|---|---|---|
 | 0x08 | 物种 | 0x92 | 当前 HP |
-| 0x0a | 携带物品 | 0x94 | 打包的个体值 |
-| 0x0c | 训练家 ID，32 位（显示时模 1000000） | 0xa4 | 成长值 |
-| 0x10 | 经验值 | 0xac, 0xb0 | 绝对身高、体重（浮点数） |
-| 0x14 | 特性 | 0xb8 | 处理训练家 |
-| 0x16 | 头目位 | 0xee | 版本 |
+| 0x0a | 持有物品 | 0x94 | 打包个体值 |
+| 0x0c | 训练家 ID，32 位（显示为 modulo 1000000） | 0xa4 | 成长值 |
+| 0x10 | 经验 | 0xac, 0xb0 | 绝对身高、体重（浮点数） |
+| 0x14 | 能力 | 0xb8 | 处理训练家 |
+| 0x16 | alpha 位 | 0xee | 版本 |
 | 0x1c | 性格值 | 0xf2 | 语言 |
-| 0x20 | 性格（9 是悠闲） | 0x110 | 训练家姓名 |
+| 0x20 | 性格（9 为 Lax） | 0x110 | 训练家名字 |
 | 0x24 | 形态 | 0x134 | 相遇日期 |
-| 0x26 | 努力值 | 0x137 | 球种 |
-| 0x3e | 头目招式 | 0x138, 0x13a | 蛋和相遇地点 |
-| 0x50, 0x51, 0x52 | 身高缩放、体重缩放、体型 | 0x13d | 相遇等级和训练家性别 |
-| 0x54, 0x5c | 招式、PP | 0x159 | 已购买招式记录 |
-| 0x60 | 昵称 | 0x15d | 精通招式位图 |
-| 0x8a | 回忆招式 | 0x168, 0x16a | 等级、六项能力值 |
+| 0x26 | 努力值 | 0x137 | 球 |
+| 0x3e | alpha 招式 | 0x138, 0x13a | 蛋和相遇地点 |
+| 0x50, 0x51, 0x52 | 身高倍数、体重倍数、比例 | 0x13d | 相遇等级和训练家性别 |
+| 0x54, 0x5c | 招式、PP | 0x159 | 购买招式记录 |
+| 0x60 | 昵称 | 0x15d | 掌握招式位图 |
+| 0x8a | 重新学习招式 | 0x168, 0x16a | 等级、六个属性 |
 
-在 47 条捕获记录中，头目在 0x50 到 0x52 处携带 0xff，体型等于身高缩放，0x94 的蛋和昵称位为清除状态，每条记录都带有版本 47、语言 2、健全性 0 和固定缎带 0xff。`pokemon.build` 在 376 个零字节和校验和之上写入给定字段。组合出的记录（异色、头目、有昵称、存档从未拥有过的物种）可以交换进入并如发送时一样显示。存档已经持有其加密常数和 PID 的记录会被存储（盒子块 `0x47E1CEAB`）；`--fresh-pid` 会重新随机生成两者。
+在 47 个捕获的记录中，alpha 在 0x50 至 0x52 中带有 0xff，比例等于身高倍数，0x94 清除了蛋和昵称位，每个记录都带有版本 47、语言 2、sanity 0 和附加的 ribbon 0xff。`pokemon.build` 在 376 个零字节和校验和之上写入给定的字段。组成的记录（异色、alpha、昵称、游戏从未拥有的物种）可以交易并显示为已发送。一个记录如果其加密常量和 PID 游戏已拥有，则会被存储（箱子块 `0x47E1CEAB`）；`--fresh-pid` 重新滚动两者。
 
-`bin/pla_host.py` 会按顺序一次性处理每个 `(port, sequence id)`，并重发未确认的应答；取消的提供会以 `04 01` 重新提供。它会在两次提供之间重新读取其提供文件。
+`bin/pla_host.py` 按顺序处理每个 `(端口, 序列号)` 一次，并重新发送未确认的回答；被取消的提供会作为 `04 01` 重新提供。在提供之间重新读取提供文件。
 
-### 精通招式
+### 掌握招式
 
-0x15d 处的八个字节是游戏 61 个招式精通列表上的位图；一个物种只能精通其个人条目允许的招式（0xa8 处的 u64）。“更改招式”界面允许精通等级（`mastery_la`）等于或低于当前等级、或者对应位被置位的招式。
+0x15d 的八个字节是游戏 61 招式掌握列表的位图；一个物种只能掌握其个人记录允许的招式（0xa8 处的 u64）。Change 招式屏幕允许掌握等级（`mastery_la`）在等级以下或位图已设置的招式。
 
-### 游戏计算的能力值
+### 游戏计算的属性
 
-`pokeldn/pla/stats.py` 可以复现它们。每项能力值包含一个成长项，公式为 `(sqrt(base) * multiplier + level) / 2.5` 并四舍五入，再加上一个基础项：HP 为 `((level / 100 + 1) * base)` 截断后加上等级；其余能力值为 `((level / 50 + 1) * base / 1.5)` 截断，并按性格取 110% 或 90%。乘数由成长值加上个体值偏差（31 及以上为 3，26 为 2，20 为 1）读取，上限为 10。已在 12 个主机数字上验证，68 级、性格 14、耿鬼：273/210/199/322/345/220（个体值 31，成长 10）和 239/136/121/322/304/133。
+`pokeldn/pla/stats.py` 复现它们。每个属性是一个成长项，按 `(sqrt(base) * multiplier + level) / 2.5` 舍入，加上一个基础项：`((level / 100 + 1) * base)` 截断，HP 额外加等级；`((level / 50 + 1) * base / 1.5)` 截断，其他属性在 110% 或 90% 应用性格修正。乘数由成长值加上个体值偏移读取（31 及以上为 3，26 为 2，20 为 1），钳制在 10。在等级 68、性格 14、梦幻（Gengar）上验证了十二个控制台数值：273/210/199/322/345/220（IVs 31，成长 10）和 239/136/121/322/304/133。
 
-0xac 和 0xb0 处的身高和体重是物种平均值乘以 `(scalar / 255) * 0.40000004 + 0.8`（每个缩放值，体重使用两个缩放值），以 32 位浮点数表示（缩放值 111、221，平均值 150、405 得到 146.11766052246094 和 452.38031005859375）。表格来自 PKHeX：`personal_la`（每条 0xB0 字节；0x21 位 6 标记游戏中的 264 个物种）、`lvlmove_la.pkl`、`MoveInfo8a`、`Experience`。
+身高和体重在 0xac 和 0xb0 是物种平均值乘以 `(scalar / 255) * 0.40000004 + 0.8` 每个 scalar，体重使用两个 scalar，在 32 位浮点数中（scalars 111、221、averages 150、405 给出 146.11766052246094 和 452.38031005859375）。表格来自 PKHeX：`personal_la`（每个条目 0xB0 字节；0x21 位 6 标记游戏中的 264 个物种），`lvlmove_la.pkl`、`MoveInfo8a`、`Experience`。
 
-## 克隆时钟与原子协议
+## Clone Clock 和 Atomic 协议
 
-克隆时钟（0x77）消息为 18 字节：类型、序列、大端 u64 起始滴答、大端 u64 应答方时钟（以毫秒为单位）。类型 0 是请求（除非是主设备，否则忽略）；类型 1 是应答，推进 ClockProtocol 的 `+0x5c`（0 复位，1 请求中，2 已同步，3 主设备，4 驻留）。加入的本机驻留在 4 并发送请求；类型 1 的应答回显序列和滴答以及主设备的时钟，使其同步。
+Clone Clock（0x77）消息是 18 字节：种类、序列号、大端 u64 发起 tick、大端 u64 响应者毫秒时钟。种类 0 是请求（除非是主机否则忽略）；种类 1 是回复，推进 ClockProtocol `+0x5c`（0 重置，1 请求中，2 同步，3 主机，4 停靠）。一个加入的控制台停靠在 4 并发送请求；一个回复种类 1 回送序列号和 tick 以及主机的时钟来同步它。
 
-克隆原子（0x74）消息为 14 字节：类型（0 宣告，1 提交，2 确认）、世代、大端 u32 元素索引（小于 33）、大端 u64 值。只有交换场景创建元素；主机类型 0 宣告会收到类型 2 回显，但不填充任何槽位。
+Clone Atomic（0x74）消息是 14 字节：种类（0 公告，1 提交，2 确认）、generation、大端 u32 元素索引（低于 33）、大端 u64 值。只有交易场景创建元素；主机种类 0 的公告会引发一个种类 2 的回声，但不填充任何槽。
 
-## 主持
+## LAN 模式
 
-`bin/pla_host.py` 会广播标题、口令、场景 ID 和链接码；`pokeldn.pla.build_advertise_data(code)` 可以逐字节重建零售版广播（`app_version` 0，`security_mode` 1）。
+Legends Arceus 1.1.1 有一个其代码从未走过的 LAN 路径。网络开始 `0x2bb9a10` 为模式 1 构建本地服务，为 2 构建互联网服务，为 3 构建 LAN 服务（`0x711ab4`）。模式从网络任务的 `+0x78`（构造函数 `0x2bbe7f4`）到达它，其唯一的创建链以 `0x2629258(.., mode)` 结尾；其两个调用者分别传递 1（`0x2628b74`）和 2（`0x262a020`），且没有任何指针命名该链上的任何函数。
+
+## Hosting
+
+`bin/pla_host.py` 广播标题、密码、场景 ID 和链接码；
+`pokeldn.pla.build_advertise_data(code)` 按字节重建零售广告数据（`app_version` 0，`security_mode` 1）。
 
     POKELDN_RADIO=esp32:auto ./.venv/bin/python -u bin/pla_host.py --keys PROD_KEYS \
         --code 00000000 --seconds 240
 
-搜索界面上的本机以约五秒的周期交替以站点身份进行扫描和以新的 SSID 进行主持。关联的加入者会保持静默，直到主机每 500 ms 发送一次 Net 0x2C 连接请求（`--no-net-probe` 会阻止该请求）。
+搜索画面上的主机在作为电台和承载新 SSID 之间交替扫描，周期约五秒。相关的加入者保持静默，直到主机每 500 毫秒发送一次 Net 0x2C 连接请求（`--no-net-probe` 会阻止它）。
 
-## 加入游戏机的网络
+## Joining a console's network
 
-`pokeldn.pla.joiner` 应答作为主机的游戏机：
+`pokeldn.pla.joiner` 回应承载主机：
 
-| 主机发送 | 加入方应答 |
+| 主机发送 | 加入者回应 |
 |---|---|
-| Net 0x11 | Net 0x12 回显该序号，标志 `0x11`，头部目的地址 0；第一次时会发送 Session 加入请求，标志 `0x01`，目的地址 0 |
-| Net 0x50 | Net 0x51 回显该序号，目的地址 0 |
-| Session 类型 7 为加入方命名 | 类型 8 |
-| Session 类型 5 | 类型 6 |
-| 第一个类型 5 | 0x81 流在端口 0 上打开，`0f00000b 0001 0001 01 00000001 0000000000008000000000` |
-| 它在端口 0 上的 0x81 记录 | ack，它在端口 1 上的自己记录（标志 `0x1f`，序号 1，位图 `0x01`），然后在 0x7c 端口 1 上打开零号密钥 |
-| 0x7c 端口 0 上打开 `0000000000000000 0100` | 相同内容回传，序号 1 |
-| 一次展示或一个提议 | 它自己的，相同选择器和计数器 |
-| 选择器 5 和 7 | 相同；在 7 之后，打开相位密钥 |
-| 相位密钥打开 | 阶段 3、6、11、14（选择器 1），每个都在主机应答之后，然后密钥关闭 |
-| RTT 类型 0 | 类型 1，回显时间戳，请求者的 variable id 最后 |
+| Net 0x11 | Net 0x12 回显序列号，标志 `0x11`，标头目标为 0；首次为会话加入请求，标志 `0x01`，目标为 0 |
+| Net 0x50 | Net 0x51 回显序列号，目标为 0 |
+| 命名加入者的会话类型 7 | 类型 8 |
+| 会话类型 5 | 类型 6 |
+| 首次类型 5 | 在端口 0 上的 0x81 流打开，`0f00000b 0001 0001 01 00000001 0000000000008000000000` |
+| 它的 0x81 记录在端口 0 | ack，自己的记录在端口 1（标志 `0x1f`，序列号 1，位图 `0x01`），然后在 0x7c 端口 1 上的密钥零流打开 |
+| 0x7c 端口 0 的打开 `0000000000000000 0100` | 相同的返回，序列号 1 |
+| 显示或报价 | 自己的，相同的选择器和计数器 |
+| 选择器 5 和 7 | 相同的；在 7 之后，阶段密钥打开 |
+| 阶段密钥打开 | 阶段 3、6、11、14（选择器 1），每个在主机回应之后，然后关闭密钥 |
+| RTT 类型 0 | 类型 1，时间戳回显，请求者的变量 ID 最后 |
 
-一个零售加入方会向目的地址 0（108 个中的第 108 个）发送它的 0x12；发往主机 variable id 的会被读取器门丢弃。一台零售游戏机作为主机时，会在加入方之后 0.02 到 0.04 秒用选择器 2 应答每个阶段。切勿在该游戏机自己的 `01 0e` 上关闭相位密钥：`02 0e` 永远不会到来，游戏机离开时会显示 2-AW7KA-0007 并保持限制。`bin/pla_join.py` 会在 `02 0e` 上关闭它，保持座位直到玩家退出或 `--hold` 结束（`--hold-after-trade N` 会在最后一次排队交换后等待 N 秒离开），并在每次交换后忘记已应答的步骤。它大约每秒在端口 0 和 1 上重复一次 0x81 确认：
+零售加入者发送目标为 0 的 0x12（108/108）；如果定向到主机的变量 ID，读取网关会丢弃它。零售主机在承载时对每个阶段的回应延迟 0.02 至 0.04 秒，选择器为 2。永远不要在主机自己的 `01 0e` 上关闭阶段密钥：`02 0e` 永远不会来，主机在离开时显示 2-AW7KA-0007 并保持限制。`bin/pla_join.py` 在 `02 0e` 上关闭它，保持座位直到玩家退出或 `--hold` 结束（`--hold-after-trade N` 在最后排队的交易后保留 N 秒），并在每次交易后忘记已回答的步骤。它在端口 0 和 1 上大约每秒重复一次 0x81 确认：
 
-    0000002c ffff 0002 01 00000001       header: size 0x2c, lowest pending 2, bitmap 1
-    00 02                                type 0 the first time, then 1; two entries
-    00 0002 0001 00*16                   the host's stream
-    00 0001 0001 00*16                   its own stream
+    0000002c ffff 0002 01 00000001       标头：大小 0x2c，最低待处理 2，位图 1
+    00 02                                首次为类型 0，随后为 1；两个条目
+    00 0002 0001 00*16                   主机的流
+    00 0001 0001 00*16                   自己的流
 
-## 在游戏机上进入本地交换
+`tests/test_pla_joiner.py` 模拟一个脚本化的主机；`tests/test_esp32.py` 在两个模拟板上运行它。
 
-    title screen, A -> Jubilife Village, the trading post -> talk to Simona (Trado in French), A
-    -> "echanger des pokemon !" -> local -> the restriction warning -> an eight-digit code
+## Reaching local trade on the console
+
+    标题画面，按 A -> Jubilife 村，交易所 -> 与 Simona（法语为 Trado）对话，按 A
+    -> "echanger des pokemon !" -> 本地 -> 限制警告 -> 八位数代码
     -> "Echange en reseau ! Recherche d'un partenaire en cours..."
 
-`0x397e1b8` 处的分钟表（`30 30 60 60 ... 2160 2160`）是遗失书包的（`0x2686a0c`，基于网络时钟），与交换无关。
+位于 `0x397e1b8` 的分钟表（`30 30 60 60 ... 2160 2160`）是丢失的背包的（`0x2686a0c`，在网络时钟上），与交易无关。
 
-## 广播
+## The advertisement
 
 | | |
 |---|---|
-| 本地通信 id | `0x01001f5010dfa000` |
-| LDN 协议 | 1：AES-CTR 广播，如同《剑》 |
-| 场景 id | 1 |
-| 广播帧版本 | 4（GBA 应用 3，剑 2） |
-| 接受策略 | 全部 |
-| 参与者 | 2 人中的 1 人 |
-| SSID | 16 字节，会话密钥的输入 |
+| 本地通信 ID | `0x01001f5010dfa000` |
+| LDN 协议 | 1：AES-CTR 广告，与 Sword 相同 |
+| 场景 ID | 1 |
+| 广告帧版本 | 4（GBA 应用 3，Sword 2） |
+| 接受策略 | all |
+| 参与者 | 1 of 2 |
+| SSID | 16 字节，作为会话密钥的输入 |
 | 应用数据 | 112 字节 |
 
-应用数据是 0x5C 系统属性块（`docs/ldn.md`，6.16 到 6.41：系统通信版本 21，应用版本 0，一个 16 字节用户密码，玩家限制开启，一个玩家，名称为单个空格），然后是明文代码：16 字节 ASCII NUL 填充，然后是其长度以小端 u32 表示（`0000 0000` 得到 `3030303030303030`、八个 NUL、8）。
+应用数据是 0x5C 系统属性块（`docs/ldn.md`，6.16 至 6.41：系统通信版本 21，应用版本 0，16 字节用户密码，玩家限制开启，一个玩家，名称为单个空格），然后以明文形式写入代码：16 字节 ASCII NUL 填充，然后其长度为小端序 u32（`0000 0000` 对应 `3030303030303030`，八个 NUL，8）。
 
-### 广播中的链接码
+### The link code in the advertisement
 
-用户密码是由 Pia 的设置器 `0x6fc454` 加密后的代码：在加密开启（session `+0x230`）且处于模式 1（`+0x234`）时，它会用 0xFE 填充 16 字节，将 NUL 填充后的代码复制到其上，并用 `0x6e68d0` 原地加密：在游戏密钥（session `+0x238`，通过 `0x6fc8a4` 设置）下使用 AES-128-GCM，无附加数据，丢弃标签，IV 为 `key[1] key[8] key[7] key[2]`（`0x6fc4e4..0x6fc4fc`），此处为 `1emf`：
+用户密码是 Pia 的 setter `0x6fc454` 加密后的代码：加密开启（会话 `+0x230`）时，使用模式 1（`+0x234`），用 0xFE 填充 16 字节，复制 NUL 填充后的代码覆盖它，并使用 `0x6e68d0` 在原地加密：在游戏密钥下进行 AES-128-GCM（会话 `+0x238`，通过 `0x6fc8a4` 设置），无附加数据，标签丢弃，IV 为 `key[1] key[8] key[7] key[2]`（`0x6fc4e4..0x6fc4fc`），此处为 `1emf`：
 
-    password  = KEYSTREAM XOR (the code's ASCII, NUL-padded to 16)
-    KEYSTREAM = AES-128-GCM(key = p1frXqxmeCZWFv0X, iv = 1emf).encrypt(16 zero bytes)
+    password  = KEYSTREAM XOR (代码的 ASCII，NUL 填充至 16 字节)
+    KEYSTREAM = AES-128-GCM(key = p1frXqxmeCZWFv0X, iv = 1emf).encrypt(16 个零字节)
               = e5ab19ed742b6d40885998bf968aa166
 
-密钥流是固定的。`pokeldn.pla` 有 `link_code_keystream`、`user_password`、`link_code` 和 `parse_advertise_data`。该设置器是 Pia 的，因此这一代中的每个游戏都以此方式加密（[无线层](ldn.md)）。
+密钥流是固定的。`pokeldn.pla` 包含 `link_code_keystream`、`user_password`、`link_code` 和 `parse_advertise_data`。setter 是 Pia 的，因此该频段的所有标题都以这种方式加密（参见[无线层](ldn.md)）。
 
-如果某台游戏机上面的主机（host）重启了，该游戏机在下一次搜索时会显示错误 2318-0006；离开交换菜单并再次搜索即可清除该错误。
+主机重启后在其下运行的主机在下一次搜索时显示错误 2318-0006；离开交易菜单并重新搜索可清除它。
 
-## 离开
+## Leaving
 
-退出的游戏机运行 `nn::pia::session::LeaveMeshJob`：它发送 Session 类型 3 的离开请求，等待 500 毫秒的类型 4 响应，最多发送四次，然后离开网络。步骤：SendLeaveRequest `0x73b898`（写入器 `0x737ee8`，截止时间在 `0x73b9a8`），WaitLeaveResponse `0x73bab8`（计数器 `[job+0x6c]`，在 `0x73bbf0` 处超过 3 后放弃），CompleteProcess `0x73ba54`。
+退出的主机运行 `nn::pia::session::LeaveMeshJob`：发送会话类型 3 的离开请求，等待 500 毫秒接收类型 4 的响应，最多发送四次，然后离开网络。步骤：SendLeaveRequest `0x73b898`（writer `0x737ee8`，deadline at `0x73b9a8`），WaitLeaveResponse `0x73bab8`（counter `[job+0x6c]`，在 `0x73bbf0` 放弃超过 3），CompleteProcess `0x73ba54`。
 
     03 | u32 random | location id (12) | address kind | IPv4 (4) | port big-endian (2)
     04 | u32 random | location id (12)                          the response, 17 bytes
 
-随机字在每次发送时都不同。类型 3 处理器 `0x738000` 应答 `04`：一个全新的随机字以及请求的第 5 到 16 字节，然后移除该站；类型 4 处理器 `0x738280` 只接受离开者自身的 id。
+每次发送的随机字都不同。类型 3 的处理程序 `0x738000` 回应 `04`，一个新的随机字和请求的第 5 至第 16 字节，然后移除电台；类型 4 的处理程序 `0x738280` 只接受离开者自己的 ID。
 
-如果没有应答，游戏机会在四次请求（约 2 秒）后离开；如果有应答，则在一次之后离开。`bin/pla_host.py` 应答每个类型 3（`tests/test_pla_host_loss.py`，应答在 unicorn 下通过 `0x738280` 运行）。
+未收到回应，主机在四次请求后（约 2 秒）离开；收到回应后，在一次请求后离开。`bin/pla_host.py` 回应每个类型 3（`tests/test_pla_host_loss.py`，回应通过 unicorn 运行 `0x738280`）。
 
-退出、搭档离开消息以及会话错误会进入场景模式 9（`0x110b72c`）：它会放置一条待处理的接收记录，启动离开（`0x26be890`），取消作业，并等待至少 3.0 秒（`0x110b7d8`）以完成离开和作业，因此无论主机是否应答，场景画面在退出后约 3.7 秒返回。`Session::LeaveAsync` 的唯一调用者是游戏的离开请求 `0x2ca0a10`；在第一个类型 3 之前没有任何 Pia 定时器（[pia.md](pia.md)，离开会话）。
+退出、伙伴离开消息和会话错误进入场景模式 9（`0x110b72c`）：它放置一个待处理的已接收记录，开始离开（`0x26be890`），取消作业，并至少等待 3.0 秒（`0x110b7d8`）以接收离开和作业，因此无论主机是否回应，字段大约在退出后 3.7 秒内恢复。唯一调用 `Session::LeaveAsync` 的是游戏的离开请求 `0x2ca0a10`；没有 Pia 定时器在第一个类型 3 之前（参见[pia.md](pia.md)，Leaving a session）。
 
-接收到离开请求不会改变屏幕上的任何内容。当游戏机处于盒子屏幕时：
+收到的离开不会在屏幕上显示任何变化。主机在盒子画面上的情况：
 
-| 主机（host） | 游戏机（console） |
+| 主机 | 主机 |
 |---|---|
-| 网络断开 | 一秒内显示 "code d'erreur 2318-0006" |
-| 网络开启且静默（`--leave-sends 0`） | 约 13 秒后显示 "Your trade partner chose not to continue trading"，然后 Communicating，然后 `DisconnectedByUser`，无错误代码 |
+| 网络关闭 | 错误代码 2318-0006 出现在一秒内 |
+| 网络开启且静默（`--leave-sends 0`） | 约 13 秒后显示 "Your trade partner chose not to continue trading"，然后是 Communicating，随后 `DisconnectedByUser`，无错误代码 |
 
-`--leave-after SECONDS` 会向每个已加入的站发送离开请求并结束运行；`--stay-after-leave` 会保持网络开启且静默。
+`--leave-after SECONDS` 向每个已加入的电台发送离开并结束运行；`--stay-after-leave` 保持网络开启且静默。
 
-## 未解决的问题
+## Unresolved
 
-- 是什么填充了场景析构函数与屏幕上场景画面之间 0.4 秒的时间。
-- 盒子代码中的哪些流程调用了 `0x26dcc74`（`0xc17ce0`、`0xc17e8c`）。
+- 什么填充了场景析构函数与字段显示之间的 0.4 秒。
+- 哪些流程的盒子代码调用 `0x26dcc74`（`0xc17ce0`, `0xc17e8c`）。
