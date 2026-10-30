@@ -98,7 +98,11 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 | 火红／叶绿 | 控制台的 LinkPlayer，`trainerId` = `SID << 16 \| TID`，在每次交易、神秘礼物和联盟房间会话中，无论是哪个角色 |
 | Switch | 在去吧！皮卡丘／伊布、晶灿钻石／明亮珍珠、传说 阿尔宙斯、朱／紫或传说 Z-A 的交易会话中，控制台的会话数据，无论是哪个角色（参见 [这是谁的存档](gift_simulated.md#whose-save-it-is)）；在剑／盾中，以及在任意标题中，控制台曾交易过且其存档捕获的宝可梦（handler 为 0，游戏自己的版本，非蛋） |
 
-启动器每次打印一次 `[trainer] {json}`（参见 `pokeldn.console_trainer`）；应用会在 `settings.json` 的 `found_trainers` 中保留每行最新的训练家，并在私有日志掩码下记录。Switch 行适用于所有 Switch 游戏，因此会使用最近一次交易的训练家。若未找到任何训练家，“查找我的”会提示进行一次交易。
+启动器每次打印一次 `[trainer] {json}`（参见 `pokeldn.console_trainer`）；应用会在 `settings.json` 的 `found_trainers` 中按行、并按游戏保留最新的训练家，并在私有日志掩码下记录。Switch 行适用于所有 Switch 游戏，因此会使用最近一次交易的训练家。若未找到任何训练家，“查找我的”会提示进行一次交易。
+
+### 每个游戏的训练家
+
+「每个游戏使用不同训练家」会让每款游戏各自拥有姓名、性别、语言、ID 和秘密 ID，一次编辑一款游戏；ID 按该游戏的显示方式。从未编辑过的游戏继续使用共用训练家。`settings.json` 用 `per_game_trainer` 保存开关，用 `game_trainers` 保存各游戏有差异的字段。`Settings.own(game)` 是某款游戏看到的训练家；`Settings.ids`、`Settings.name`、`Settings.trainer` 以及启动令牌 `{ot}`、`{tid}`、`{sid}`、`{language}`、`{gender}` 都经此读取（`tests/test_gui_catalog.py`）。对某款游戏按「找我的」会取用从该游戏读到的最新训练家。
 
 ## Windows USB 驱动
 
