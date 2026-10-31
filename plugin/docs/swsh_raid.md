@@ -99,7 +99,9 @@ den 主机的广告描述其极巨团体战；访客的 Y-Comm 条目构建器�
 | boss | `0x01032270` | 种属、形态和 party `+0x156`（1 正常，2 超极巨化）等于 den 记录命名的条目：类型 0 为基础表 `0xDE`，广告版本的槽位 `0xE0`；类型 1 至 3 为访客自身保存的事件遇见，槽位 `0xE0`；类型 4 为其保存的水晶遇见 |
 | rewards | `0x01032570` | 每对带有物品和数量的都是槽位奖励表在广告排名下恰好其数量的奖励行，或是 drop 表中物品以该排名有概率（数量自由） |
 
-等级、招式、IV、PID、能力、异色和训练师字段不进行比较。零 den 记录命名类型 0，表 0，槽位 0（Tyrogue）。在零售剑访客上观察到：带有训练师数据的 boss 记录、party 极巨化类型为 0，或是零 den 记录用于 boss 基础 den 不持有的 boss（Mew、事件的超极巨化 Toxtricity）会导致 2-ALZAA-0016，尽管极巨团体战已被列出；仅更改种属的 den boss 记录和由 `raid.boss_record` 构建的 boss 会被接受。基础 den 不持有任何传说或神话宝可梦，因此主办的 boss 是 `nest_slots.json` 列出的种属、形态和超极巨化状态；`raid.den_advert` 在仅另一方持有 boss 时切换广告版本，并将事件 boss 显示为持有其种属的基础 den 槽位。`raid.reward_choices` 列出槽位在某个排名下允许的内容；`raid.den_rewards` 构建槽位自己的行。
+等级、招式、IV、PID、能力、异色和训练师字段不进行比较。零 den 记录命名类型 0，表 0，槽位 0（Tyrogue）。在零售剑访客上观察到：带有训练师数据的 boss 记录、party 极巨化类型为 0，或是零 den 记录用于 boss 基础 den 不持有的 boss（Mew、事件的超极巨化 Toxtricity）会导致 2-ALZAA-0016，尽管极巨团体战已被列出；仅更改种属的 den boss 记录和由 `raid.boss_record` 构建的 boss 会被接受。基础 den 不持有任何传说或神话宝可梦，因此主办的 boss 是 `nest_slots.json` 列出的种属、形态和超极巨化状态；`raid.den_advert` 在仅另一方持有 boss 时切换广告版本，并将事件 boss 显示为持有其种属的基础 den 槽位。`bin/swsh_host.py` 和应用的极巨团体战主持工具会拒绝基础 den 不持有的头目。
+
+`raid.boss_record` 保留 den 头目的 TID 28222 和 SID 36500。异色判定是 PID 对上这两个 ID，因此 `raid.same_shine` 会移动 PID 的高半部分，以保留头目文件中相对其训练家的方形、星形或普通异色；若把头目改成玩家异色却原样发送 PID，则会抽成普通色。`raid.reward_choices` 列出槽位在某个排名下允许的内容；`raid.den_rewards` 构建槽位自己的行。
 
 在 den boss 中，party HP 统计和当前 HP 是普通 HP 统计乘以 `(150 + 5 * Dynamax 等级) / 100`，向下取整；其他统计为普通值。Dynamax 等级位于 `+0x90`，能力槽位比特位于 `+0x16` 位 0 至 2，经验值是等级的最低位。
 

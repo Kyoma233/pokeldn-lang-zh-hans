@@ -6,13 +6,13 @@
     {
       "id": "pokeldn-zh-hans",
       "name": "简体中文",
-      "version": "0.49.1-zh.1",
-      "description": "pokeldn 简体中文语言包（界面文案、游戏术语与文档），适配 pokeldn v0.49.1。",
+      "version": "0.50.0-zh.1",
+      "description": "pokeldn 简体中文语言包（界面文案、游戏术语与文档），适配 pokeldn v0.50.0。",
       "author": "Kyoma233",
       "api": "1.9",
-      "download": "https://github.com/Kyoma233/pokeldn-lang-zh-hans/releases/download/v0.49.1-zh.1/pokeldn-zh-hans-0.49.1-zh.1.pokeplugin",
-      "sha256": "f06e4014108d84936bafee3f72cc096fb3befdc3df04df778d324e97ce2e11d2",
-      "size": 543789,
+      "download": "https://github.com/Kyoma233/pokeldn-lang-zh-hans/releases/download/v0.50.0-zh.1/pokeldn-zh-hans-0.50.0-zh.1.pokeplugin",
+      "sha256": "bd01984e48bd328e827434db5811091e1b38d7cb563fe81f13c5e8a2767696a8",
+      "size": 544355,
       "homepage": "https://github.com/Kyoma233/pokeldn-lang-zh-hans"
     }
   ]

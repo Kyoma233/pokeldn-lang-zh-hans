@@ -89,6 +89,8 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 
 `Settings.ids` 按游戏转换。每个连接控制台的工具都会将此训练家作为其玩家呈现（参见 `tests/test_gui_catalog.py`）。火红／叶绿的姓名被截断为七个第三世代字符；不可编码的姓名变为 `POKELDN`（参见 `Settings.name`）。传说 Z-A 仅在性别、ID 和姓名都匹配时，才会将收到的宝可梦视为玩家自己的（参见 [收到记录的内容](za.md#what-the-trade-writes-into-a-received-record)）；传说 阿尔宙斯的记录会携带性别（参见 [记录](pla.md#the-games-reader-and-the-pre-handler-phase)）。
 
+宝可梦文件会保留其自身的初训家，除非报价卡片上的「使我成为其初训家」开关打开：PKHeX 的 `check` 在带有 `trainer` 字段时会写入此训练家的姓名、ID 和性别（`Retrain`）。异色判定是 PID 对上这些 ID。从第七世代起，会移动 PID 的高半部分以保持方形、星形或普通异色；遭遇固定的 PID（第三世代的性格、特性和性别，剑的野外或团体战种子）保持不变，卡片会注明异色已改变。仅在其自身训练家下才合法的宝可梦——例如固定初训家的活动——会以 PKHeX 给出的原因被拒绝。
+
 ### 查找你的训练家
 
 “查找我的”会从最近一次从控制台读取的训练家中填充一行的 ID 和秘密 ID，以及姓名、性别和语言。Switch 游戏从不显示秘密 ID；链接会携带它。
