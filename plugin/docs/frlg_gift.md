@@ -24,7 +24,7 @@ nav_order: 2
 ### 帧格式规则
 
 - 大小 0 表示 1024 [mystery_gift_link.c:55]；`SVR_COPY_SAVED_RAM_SCRIPT` 永远不会设置 `ramScriptSize` [mystery_gift_server.c:275]，因此 RAM 脚本和 READY_END 都是完整的 1024 字节消息。CRC 覆盖填充后的缓冲区。
-- 块 pacing 没有确认：除非接收方的槽位是 `RECV_STATE_READY` [link_rfu_2.c:1146]，否则 `SEND_BLOCK_INIT` 会被忽略。`MysteryGiftTiming.inter_block_gap_frames` 是 36；丢失一个块会导致控制台永远等待。
+- 块 pacing 没有确认：除非接收方的槽位是 `RECV_STATE_READY` [link_rfu_2.c:1146]，否则 `SEND_BLOCK_INIT` 会被忽略。`MysteryGiftTiming.inter_block_gap_frames` 是 36；丢失一个块会导致控制台永远等待。客户端跨多帧处理的载荷会让该槽位保持同样长时间：服务器用 `after` 发送这类消息，即控制台在最后一个块发出后仍忙碌的帧数。下一条消息的头块可能落在这段时间里；主机在控制台空闲前会扣住第二个块。
 - 当控制台发送时，遵循[镜像规则](frlg_link.md#row-one-of-the-parents-table-is-the-consoles-own-command-mirrored-back)。
 
 ### 模块
@@ -280,7 +280,7 @@ Wonder Card、Friend 会话将控制台整个 128 KiB 保存芯片复制到主�
 1. 第一条消息是 620 字节镜像；`install` 将其复制到 `gDecompressionBuffer + 0x400`，并回复 28 个槽位的 12 字节页脚（id、校验和、签名、计数器位于 `+0xFF4`）。
 2. 主机像 `GetSaveValidStatus` 一样找到最新的完整槽位，并将文件副本写入另一个槽位，计数器为 `newest + 1`，然后按文件内容写入槽位 28 至 31。
 3. 它先擦除目标槽位的 id-0 扇区，再最后写入新的 id 0，因此芯片自己的副本会一直加载，直到新副本完整。
-4. 后续消息以 `b RESIDENT + 4`（`0xEA0000FF`）开头，后跟一个操作。`OP_DATA`（1）将扇区、写标志、u16 偏移、u16 令牌长度及令牌载入 4 KiB 缓冲区；该扇区的最后一条消息通过 `swi 0x48` 写入并验证，校验失败时设置失败掩码位。
+4. 后续消息以 `b RESIDENT + 4`（`0xEA0000FF`）开头，后跟一个操作。`OP_DATA`（1）将扇区、写标志、u16 偏移、u16 令牌长度及令牌载入 4 KiB 缓冲区；该扇区的最后一条消息通过 `swi 0x48` 写入并验证，校验失败时设置失败掩码位。一份客户端脚本最多携带 62 条数据消息、多个扇区，控制台在脚本结束时一次性上报累计失败掩码。新的 id 0 会单独开一批，因此只有在该槽位其余部分整段读回之后才发送。
 5. `OP_FINISH`（2）在未发生失败时调用 `LoadGameSave(SAVE_NORMAL)` [save.c:803]。若返回 `SAVE_STATUS_OK`，会话在 `CLI_MSG_BUFFER_SUCCESS` 结束，控制台保存已加载的游戏；否则在 `CLI_MSG_BUFFER_FAILURE` 结束，旧存档保留。
 
 | payload 字 | 偏移 | 值 |

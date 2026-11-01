@@ -230,7 +230,7 @@ Kind 2 没有分片（字节 124 为 0），只有 AES-GCM 头部。在屏幕命
   `rfu_leader.RFULeader`、`host_session.HostSession` |
 | `gift_mg.c` | `host_mystery_gift.HostMysteryGiftEngine`、
   `block.BlockSender` 和 `RecvBlock`、`mg_link`、服务器脚本 |
-| `gift_zstd.c` | zstd 1.5.6 的解码器（`vendor/zstd`） |
+| `gift_zstd.c` | zstd 1.5.7 的解码器（`vendor/zstd`） |
 
 信标任务运行它：驱动的帧和关联通过队列传递给它，
 它在返回的截止时间运行定时器，并每隔 `interval_ms` 重建广告，
