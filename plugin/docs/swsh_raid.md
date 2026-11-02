@@ -101,9 +101,31 @@ den 主机的广告描述其极巨团体战；访客的 Y-Comm 条目构建器�
 
 等级、招式、IV、PID、能力、异色和训练师字段不进行比较。零 den 记录命名类型 0，表 0，槽位 0（Tyrogue）。在零售剑访客上观察到：带有训练师数据的 boss 记录、party 极巨化类型为 0，或是零 den 记录用于 boss 基础 den 不持有的 boss（Mew、事件的超极巨化 Toxtricity）会导致 2-ALZAA-0016，尽管极巨团体战已被列出；仅更改种属的 den boss 记录和由 `raid.boss_record` 构建的 boss 会被接受。基础 den 不持有任何传说或神话宝可梦，因此主办的 boss 是 `nest_slots.json` 列出的种属、形态和超极巨化状态；`raid.den_advert` 在仅另一方持有 boss 时切换广告版本，并将事件 boss 显示为持有其种属的基础 den 槽位。`bin/swsh_host.py` 和应用的极巨团体战主持工具会拒绝基础 den 不持有的头目。
 
-`raid.boss_record` 保留 den 头目的 TID 28222 和 SID 36500。异色判定是 PID 对上这两个 ID，因此 `raid.same_shine` 会移动 PID 的高半部分，以保留头目文件中相对其训练家的方形、星形或普通异色；若把头目改成玩家异色却原样发送 PID，则会抽成普通色。`raid.reward_choices` 列出槽位在某个排名下允许的内容；`raid.den_rewards` 构建槽位自己的行。
+使用 `--raid-boss-as-is` 时，`raid.boss_record` 保留 den 头目的 TID 28222 和 SID 36500。异色判定是 PID 对上这两个 ID，因此 `raid.same_shine` 会移动 PID 的高半部分，以保留头目文件中相对其训练家的方形、星形或普通异色；若把头目改成玩家异色却原样发送 PID，则会抽成普通色。`raid.reward_choices` 列出槽位在某个排名下允许的内容；`raid.den_rewards` 构建槽位自己的行。
 
 在 den boss 中，party HP 统计和当前 HP 是普通 HP 统计乘以 `(150 + 5 * Dynamax 等级) / 100`，向下取整；其他统计为普通值。Dynamax 等级位于 `+0x90`，能力槽位比特位于 `+0x16` 位 0 至 2，经验值是等级的最低位。
+
+### 抓住后仍合法的头目
+
+den 主机的 BossPokemon 是某一种子的团体战掷点结果 [PKHeX RaidRNG]。模拟的盾版主机发出的两个 den 头目都是一次掷点：豆豆鸽（`raid_boss_template.ek8`）对应种子 `0xF41D53DF6C576FFD`，咕咕对应 `0xBA7E50A969044287`，都是通过搜索加密常量留下的 32 个种子位找到的（`tests/test_swsh_raid.py`）。以该种子与 `0x82A2B175229D6A5B` 播种的 xoroshiro128+，按顺序抽取：
+
+| 抽取 | 字段 |
+|---|---|
+| u32 | 加密常量 |
+| u32 | 记录的 TID（低半）与 SID（高半） |
+| u32 | PID；其异色相对该 TID 与 SID 判定 |
+| rand(6)，直到某项能力还没有 | den 的各项完美 IV |
+| rand(32) | 其余 IV，顺序为 HP、Atk、Def、SpA、SpD、Spe |
+| rand(3) 或 rand(2) | 能力槽位（den 会抽一个时） |
+| rand(253) + 1 < 性别比 | 雌性（双性别种属） |
+| rand(25) | 性格；颤弦蝾螈从其形态表抽取 |
+| rand(129) + rand(128)，两次 | 身高，然后体重 |
+
+同一种子上的第二个生成器给出等级：该排名的最低值（15 + 10 × 排名）加上 rand(6)，然后是 Dynamax 等级：排名 + 1 加上 rand(2)，或在排名 4 时为 6 加上 rand(3) [PKHeX EncounterStatic8N]。当某 den 遭遇（匹配种属、形态与超极巨化状态）的一种子能给出上述全部数值，且其 PID 把掷点的异色带到训练家身上时，PKHeX 会接受抓住的 den 宝可梦；相遇地点为共享 den（地点 162），任意 den 表的遭遇都匹配。文件自带的头目作为捕获会通不过该检查：「PID+ correlation does not match」，或等级不是任何 den 给出的遭遇。
+
+访客的捕获会保留头目记录。一位模拟的盾版访客抓住了由种子 `0xF3D291D263CC680F` 主持的毛辫羊：捕获记录带有掷点的加密常量、PID、IV、性格、性别、体型、能力槽位与 Dynamax 等级，头目的招式与 17 级，并采用捕获者的训练家、相遇地点 162、相遇等级 17、精灵球与日期。以同样方式抓住的异色毛辫羊保留了掷点的数值，只是 PID 的高半被移动，使相对捕获者 TID 与 SID 的异色为 1（掷点在记录自身下为 5）；主机将其显示为异色。PKHeX 两者都接受（`tests/test_pokemon_service.py`）。
+
+`bin/swsh_host.py --raid-boss` 发送一次掷点：PKHeX 助手的 `raid_boss` 选取该头目种属、形态与超极巨化状态在其等级所对应排名（或 den 能给出的最近排名）下的 den 遭遇，以及掷点带有文件异色的种子，并优先匹配性格与性别。记录保留文件的招式。`--raid-boss-as-is` 发送文件自身的等级、IV、性格、体型与 PID。事件头目（`raid_event.boss_pk8`）是随机种子在事件表等级下、按表的完美 IV、能力、性别、性格与异色规则掷点的结果。
 
 ## Hosting
 
