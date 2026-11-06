@@ -45,7 +45,7 @@ Pia 头携带版本 4，形状与[The Pia layer](pia.md)中的两个频段均不
 
     POKELDN_RADIO=esp32:auto ./.venv/bin/python bin/swsh_join.py --keys PROD_KEYS --scan-only
 
-扫描主持屏幕并将每个广告写入 `scratchpad/swsh_net_facts.json`。
+扫描主持屏幕并将每个广告写入一个 JSON 文件。
 
 | screen | local communication id | version | scene | app version |
 |---|---|---|---|---|

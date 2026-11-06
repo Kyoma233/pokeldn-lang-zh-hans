@@ -29,16 +29,15 @@ Switch 发行版把 GBA ROM 作为其 RomFS 中的唯一文件携带。
 （[frlg_rom.md](frlg_rom.md)，断点钩子一节）；`0x09000000..0x0A000000` 读作开放总线（每个半字地址折半为其自身）。英文版（`BPRE`、`BPGE`）与
 `pret/pokefirered` 的 `pokefirered_switch.gba` 和 `pokeleafgreen_switch.gba` 逐字节相同。
 
-`scratchpad/base_romfs.py` 读取 Program NCA 的单个 CTR RomFS 节：
+`tools/frlg/extract_cartridges.py` 读取每个包装的 Program NCA 的单个 CTR RomFS 节并写出其镜像：
 
-    ./.venv/bin/python scratchpad/base_romfs.py "$NSP" --list
-    ./.venv/bin/python scratchpad/base_romfs.py "$NSP" --extract /FireRed_f.gba --out scratchpad/FireRed_f.gba
+    ./.venv/bin/python tools/frlg/extract_cartridges.py --packages DIR --keys PROD_KEYS --out DIR
 
 ## EWRAM 在两个版本中位于相同地址
 
 英文 ELF 的 EWRAM 符号即法语卡带的符号（`gDecompressionBuffer` 0x0201C000、
 `gPlayerParty` 0x02024280、`gPlayerPartyCount` 0x02024025）。IWRAM 不同。没有符号占用
-0x0203FBAC（符号最高结束地址）到 0x02040000（`scratchpad/ram_survey.py`）。
+0x0203FBAC（符号最高结束地址）到 0x02040000。
 
 ## 英文卡带
 
@@ -63,7 +62,7 @@ Switch 发行版把 GBA ROM 作为其 RomFS 中的唯一文件携带。
 `gIntrTable[4]` 0x030027E0、`gLastWrittenSector` 0x03004650、`gSaveCounter` 0x03004660。英文
 叶绿的 RAM 与英文火红相同；常驻钩子的地址中只有 `m4aSoundMain` 发生移动
 （0x081E07C4 对 0x081E07E8）。`tests/test_frlg_english_cartridges.py` 通过每个镜像的
-`Client_RunBufferScript` 运行载荷（缺少 `scratchpad/frlg_en/` 时跳过）。
+`Client_RunBufferScript` 运行载荷（缺少镜像时跳过，用 `tools/frlg/extract_cartridges.py` 提取）。
 
 ## BIOS 包装器
 
@@ -91,7 +90,7 @@ Switch 发行版把 GBA ROM 作为其 RomFS 中的唯一文件携带。
     0x08148C8C -> 0x0300422C   &gSaveBlock2Ptr
     0x08148C90 -> 0x03004228   &gSaveBlock1Ptr
 
-0x08148C94 处的 `MysteryGiftClient_CallFunc` 按 `client->funcId` 索引 `sClientFuncs`（0x0845DBD0，八项）。其他每个地址都从字面量池、`bl` 目标与指针表到达，且都落在已知的函数序言上（`scratchpad/rom_read.py`）。
+0x08148C94 处的 `MysteryGiftClient_CallFunc` 按 `client->funcId` 索引 `sClientFuncs`（0x0845DBD0，八项）。其他每个地址都从字面量池、`bl` 目标与指针表到达，且都落在已知的函数序言上。
 
 ## 四个函数表
 
@@ -144,8 +143,8 @@ Switch 发行版把 GBA ROM 作为其 RomFS 中的唯一文件携带。
     FlagClear            0x08071F1C      AddPCItem            0x0809DDB4
     FlagGet              0x08071F44      IncrementGameStat    0x080587A4
 
-`gSpecialVar_Result` 为 0x020370CC；`Random` 为 0x080486B0。`scratchpad/handler_workers.py` 打印处理函数的 `bl` 目标；`tools/frlg/rom_functions.py --table specials|field|mystery-event|callable`
-对整张表执行此操作，并规划下一批 `--dump-address` 窗口。
+`gSpecialVar_Result` 为 0x020370CC；`Random` 为 0x080486B0。
+`tools/frlg/rom_functions.py --table specials|field|mystery-event|callable` 打印一张表中各处理函数的 `bl` 目标，并规划下一批 `--dump-address` 窗口。
 
 ROM 由 agbcc 构建，并以 `pop {r4,r5,r6}; pop {r1}; bx r1`（BC70 BC02 4708）结束 THUMB 函数，从不使用 `pop {..., pc}`。`pokeldn/frlg/rom/thumb.py` 匹配 `bx Rn`，仅当其后跟有函数序言时才把一次返回视为块的结束。
 
@@ -312,7 +311,7 @@ ROM 由 agbcc 构建，并以 `pop {r4,r5,r6}; pop {r1}; bx r1`（BC70 BC02 4708
 | 居合斩、碎岩、怪力消息返回指针 | 0x081C1909、0x081C19FD、0x081C1AE6 |
 | `GetMoney`、`SpeciesToNationalPokedexNum`（表） | 0x080A376C、0x080469A8（0x0824B9DE） |
 
-徽章检查指向位于 0x081C1901、0x081C19F5 和 0x081C1ADE 的消息脚本；`EventScript_CurrentTooFast` 从 `0x081AA346`（`lockall`）开始。翻译后的文本会移动每个恢复脚本。`tests/test_frlg_english_cartridges.py`、`tests/test_noclip.py` 和 `tests/test_follower.py` 在存在 `scratchpad/frlg_es/FireRed_s.gba` 时使用它。
+徽章检查指向位于 0x081C1901、0x081C19F5 和 0x081C1ADE 的消息脚本；`EventScript_CurrentTooFast` 从 `0x081AA346`（`lockall`）开始。翻译后的文本会移动每个恢复脚本。`tests/test_frlg_english_cartridges.py`、`tests/test_noclip.py` 和 `tests/test_follower.py` 在存在西班牙语镜像时使用它。
 
 # 法语易聊词汇
 
@@ -346,7 +345,6 @@ easychat_french.check(ids, strict=True)              # raises on anything unread
     POKELDN_RADIO=esp32:auto ./.venv/bin/python -u bin/frlg_mg_host.py --live --keys PROD_KEYS \
         --buffer-script string-gather --gather-address 0x083DF5C0 --gather-count 42 \
         --gather-stride 12 --dump-file DUMP.bin --version firered    # one group per run
-    ./.venv/bin/python scratchpad/ec_words.py --group 4 DUMP.bin
 
 叶绿的易聊区域位于火红对应区域 −0x1C4 处，词汇相同。
 

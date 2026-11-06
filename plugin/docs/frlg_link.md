@@ -94,6 +94,10 @@ IDLE x75    -> the host pulls the party
 
 `HandleLinkConnection` 在 Switch 构建中调用 `svc_51` [link.c:1654]；返回非零意味着 `CloseLink()`，然后在神秘礼物下软复位或 `RfuReloadSave()` [link.c:1674]：Switch 错误 2318-0006。主机在 RFU 层仍正常时出现崩溃，则指向 LDN/Pia。
 
+`svc_51` 返回的字来自会话对象的失败处理程序 `main + 0x051004`：十二处调用点向它传入一个 `nn::Result`，模块 `0x13E`（318，即 `2318-` 错误）在过滤掉预期代码后的失败会存入会话 `+0x3404`（由 `svc_51` 读取并清零）以及 `+0x277C`（保留第一次）。对象在网络关闭时释放；只有它仍存活时（在断点处）才能读到该代码。
+
+`Communication error` 也仅来自游戏本身，此时 `svc_51` 保持静默。失败的神秘礼物接收检查会调用 `LinkRfu_FatalError` [mystery_gift_link.c:104,109,141,199]，留下 `errorInfo` `0x9000`（`F_RFU_ERROR_5 | F_RFU_ERROR_8`）[link_rfu_2.c:998]；错误屏幕上 `sLinkErrorBuffer`（BPRE 上为 `0x02022850`）的第一个字读作 `0x90000000`。
+
 | SVC | 调用来源 | 作用 |
 |---|---|---|
 | `swi 0x45` | librfu_rfu.c:667,749 | 将 `gRfuLinkStatus` 交给模拟器 |

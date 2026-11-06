@@ -164,7 +164,7 @@ macOS 会在负责的应用未声明 `NSBluetoothAlwaysUsageDescription` 时终�
 
 ## 构建
 
-    . scratchpad/esp/env.sh
+    . scripts/esp_env.sh
     cd firmware/pad && idf.py -B BUILD_DIR -D SDKCONFIG=SDKCONFIG_PATH build
 
 TinyUSB 来自组件管理器（`espressif/esp_tinyusb` 2.4.0）。发布版本会在 radio 镜像旁边构建 `pokeldn-pad-s3.bin`。

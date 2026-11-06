@@ -1,6 +1,7 @@
 ---
 title: Ruby, Sapphire and Emerald
 nav_order: 11
+has_children: true
 nav_exclude: true
 search_exclude: true
 ---
@@ -9,8 +10,16 @@ search_exclude: true
 
 红宝石／蓝宝石／绿宝石没有 Switch 版本；pokeldn 携带的支持是从
 [pret/pokeemerald](https://github.com/pret/pokeemerald) 和 [pret/pokeruby](https://github.com/pret/pokeruby)
-准备的，用于与火红／叶绿相同的 GBA 应用。这里没有任何内容在真机上测量，所有地址都是 GBA 英文构建版的地址。应用仅在从源码检出时显示标题
+准备的，用于与火红／叶绿相同的 GBA 应用。所有地址都是 GBA 英文构建版的地址。应用仅在从源码检出时显示标题
 （[未发布标题](gui.md#unreleased-titles)）。
+
+为该应用构建的绿宝石可替代火红卡带运行，并与 pokeldn 主机连接（[Switch 构建](rse_switch_build.md)）。在正式版出现之前，该构建是这些页面的测量工具。
+
+| 页面 | 主题 |
+|---|---|
+| [交换与联盟房间](rse_link.md) | 加入主机、连接交换、联盟房间 |
+| [神秘礼物](rse_gift.md) | 协议差异、礼物、菜单闸门 |
+| [Switch 构建](rse_switch_build.md) | 面向火红应用的绿宝石：移植、构建、运行、测试存档 |
 
 GBA 应用已经为全部五个第三代游戏代码保存了游玩报告表，其中包括 `AXV?`、
 `AXP?` 和 `BPE?`（[主机上的代码](frlg_rom.md)），并且全部十二个火红／叶绿标题共用第一个本地通信 ID

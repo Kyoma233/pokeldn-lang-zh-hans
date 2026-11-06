@@ -425,7 +425,7 @@ E32R40T（作为 4.0 英寸 ESP32-32E 显示器出售）是一块经典 ESP32，
 
 固件版本（`firmware/esp32/version.txt`，格式为 `major.minor.patch`，所有目标共享）会在 INFO 中报告为 `version=...`；未版本化的构建显示为 `version unknown`，只要其串口协议匹配即可正常工作。协议号是独立的，仅在通信协议变更时修改。
 
-ESP-IDF v6.1（标签 `v6.1`，提交 `fff9895c82d744c7237be8847347bdd1b07c6643`）构建所有四个目标。使用 `install.sh esp32,esp32s3,esp32c3,esp32c6` 安装其工具，然后激活 IDF 环境。
+ESP-IDF v6.1（标签 `v6.1`，提交 `fff9895c82d744c7237be8847347bdd1b07c6643`）构建所有四个目标。使用 `install.sh esp32,esp32s3,esp32c3,esp32c6` 安装其工具，然后激活 IDF 环境（`. scripts/esp_env.sh`）。
 
     cd firmware/esp32
     idf.py set-target esp32   # esp32s3, esp32c3 或 esp32c6 对应不同芯片
@@ -440,8 +440,8 @@ esptool 根据端口的 USB ID 选择复位方式，但 esp-pylib 1.1.5 拒绝�
 
 带有 `POKELDN_BLE=1` 的构建还通过蓝牙低功耗携带主机链接，适用于无法打开 USB 串口设备的 iOS 应用；此时板子仅需 USB 供电。
 
-    POKELDN_BLE=1 idf.py -B ../../scratchpad/esp/build-ble \
-        -D SDKCONFIG=../../scratchpad/esp/build-ble/sdkconfig \
+    POKELDN_BLE=1 idf.py -B BUILD_DIR \
+        -D SDKCONFIG=BUILD_DIR/sdkconfig \
         -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.ble" build
 
 板子仅广告其名称 `POKELDN-RADIO`；iOS 应用以无服务过滤扫描。服务 UUID 为 `7a1e0101-5d2c-4c3e-9f4b-504f4b454c44`：主机将 COBS 流写入 `...0102`（无响应写入），板子则在 `...0103` 通知。当一个中心设备订阅 `...0103` 时，通信走该路径，电缆保持静默。帧格式、CRC 和 CREDIT 保持不变。HELLO 文本以 `link=ble` 结尾，Board 页面显示为蓝牙无线固件。

@@ -177,7 +177,7 @@ static u32 Client_RunBufferScript(struct MysteryGiftClient * client)
 每次都先离线：
 
     ./.venv/bin/python -m pytest tests/test_buffer_script.py -q
-    ./.venv/bin/python scratchpad/mg_client_harness.py --buffer-script -v
+    ./.venv/bin/python -m pytest tests/test_mystery_gift_flow.py -q
 
 在硬件上，控制台会等待神秘礼物 -> 神秘卡片 -> 朋友，然后加入主机。在下面的运行命令中，`HOST`
 代表
@@ -205,8 +205,7 @@ SIGTERM；它会在显示 `Buffer script dump: N bytes` 数秒后写出：
 `AGBPrintf`，后者在发布版本中未使用（pokefirered_switch.elf：对 `_malloc_r`、`_calloc_r`
 和 `_free_r` 的唯一 `bl` 均位于 libc 内部）。在 mGBA 下的法语版火红中，在那里填充 0xA5 后经过
 菜单、行走和一整场野生对战仍然保留。GB-Link 团队卡片将其重定位后的脚本保存在那里
-（[frlg_gift.md](frlg_gift.md#gb-link-team-cards)）。`scratchpad/ewram_symbol.py ADDR LEN`
-可检查某个地址。
+（[frlg_gift.md](frlg_gift.md#gb-link-team-cards)）。反编译的链接映射会标出某个地址上有什么。
 
 绝不要因为某个地址读数为零就选择它。0x0202B280、0x020185C4 和 0x0203B0E9 会读出几十 KB 的零，
 它们分别是对战和盒子缓冲区、`gDecompressionBuffer` 之前的一段区域以及分配器簿记；0x02012304
@@ -613,7 +612,7 @@ Pia 一侧的两端都已解码：访客的 `RfuGameData` 和用户名被重新�
 | 0x4E | 跳转表项 `0x147` | 落入分派器的退出：该系统调用什么也不做 | |
 | 0x4F | `main + 0x057248` -> `main + 0x058B54` | 在其栈上构建 `{u16 tag 0x4757; u32 value = r0}`；带标签属性分派器 `main + 0x4EBD0` 和设置器 `main + 0x058BB4` 将未验证的值存储到 `component + 0x6052A0` | 写入 3 和 `0x7FFFFFFF`，各自后跟 0x49 和 0x4A，无可观察变化 |
 | 0x50 | getter `main + 0x058BA4` | 读回同一个 4 字节计数 | |
-| 0x51 | `main + 0x057270` -> `main + 0x0511BC` | 将 `component + 0x3404` 读入输出参数并清零；输出参数始终是分派器自身的栈槽 | |
+| 0x51 | `main + 0x057270` -> `main + 0x0511BC` | 将会话 `+0x3404`（`[component + 0xD0]`）读入输出参数并清零；输出参数始终是分派器自身的栈槽 | |
 | 0x52 | `main + 0x05728C` | 通过总线对象的区域表（`[component + 0xE0] + 0x50`）折叠 guest `r0`，并调用区域的 `+0x48` 折叠。非零 guest `r1` 还会运行指针解析器 `main + 0x562CC`：它读取 `[[bus] + 0x50 + (r1 >> 24) * 8]`，索引无界 0..255，调用值的 `+0x48` 作为虚方法，然后在 `offset < size` 时返回 `backing + offset`。该处理程序是解析器的唯一调用者，丢弃其结果并返回 `r0 = 0`，因此 guest `r1` 读回 0。读到的 256 个活动条目是 main 自身的方法指针、负值和零，没有一个具有 `+0x48` 方法的对象 | |
 | 0x53 | `main + 0x0572D4` | 应答 `component + 0x2770 == 0`（通过 `[component + 0xD0]`） | |
 | 0x54 | `main + 0x0572EC` | `svc_CommsAllowedByParentalControls` [sloopsvc.c:182] | 返回 1 |
@@ -1018,7 +1017,7 @@ void CreateMon(struct Pokemon *mon, u16 species, u8 level, u8 fixedIV,
 
 `--create-mon-call` 默认来自 `rom_map.py` 中的 `CreateMon | 1`；`0` 不调用任何函数并返回清零缓冲区。答案为 116 字节（四个头部字，100 字节的 `struct Pokemon`），且 `*param` 是性格值。
 
-子结构用 `personality ^ otId` 加密并进行校验和，因此有效的校验和可以证明这两个字。`check_create_mon` 检查物种、等级和个体值；`scratchpad/verify_create_mon.py` 预测十三个派生字段：经验值来自 `gExperienceTables[growthRate][level]`，亲密度和特性槽来自 `gSpeciesInfo`，招式与 PP 来自升级技能表，六项能力来自 `CalculateMonStats`。昵称来自 `gSpeciesNames` [pokemon.c:1810]，即卡带的法语表，只读取从不预测。三个字段用于衡量主机：
+子结构用 `personality ^ otId` 加密并进行校验和，因此有效的校验和可以证明这两个字。`check_create_mon` 检查物种、等级和个体值。十三个派生字段由物种和等级决定：经验值来自 `gExperienceTables[growthRate][level]`，亲密度和特性槽来自 `gSpeciesInfo`，招式与 PP 来自升级技能表，六项能力来自 `CalculateMonStats`。昵称来自 `gSpeciesNames` [pokemon.c:1810]，即卡带的法语表，只读取从不预测。三个字段用于衡量主机：
 
 | field | value | what it says |
 | --- | --- | --- |
