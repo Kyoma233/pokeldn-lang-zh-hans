@@ -1780,6 +1780,8 @@
 "settings.app_language_b8352b" = "应用语言"
 "settings.asks_github_for_a_newer_pokeldn_when_the_app_starts_and_b07880" = "应用启动时向 GitHub 查询 pokeldn 新版本，并向每个已安装插件自己的地址查询其新版本。不会发送任何关于你或你的游戏的信息。"
 "settings.automatic_default" = "自动（默认）"
+"settings.bank_illegal" = "向银行导入不合法的宝可梦"
+"settings.bank_illegal_detail" = "从文件或存档导入到银行时，保留 PKHeX 判定为不合法的宝可梦，并标为不合法。将其移入游戏或交换仍需开启「允许不合法的宝可梦」。GTS 仍只接受合法宝可梦。"
 "settings.board_screen" = "显示开发板屏幕"
 "settings.board_screen_detail" = "在会话面板顶部绘制开发板像素屏上显示的内容：连接流量、每次交换的宝可梦、神秘礼物卡与团体战大厅。无需把屏幕接到开发板上。"
 "settings.bug_reports_aa0e58" = "错误报告"
