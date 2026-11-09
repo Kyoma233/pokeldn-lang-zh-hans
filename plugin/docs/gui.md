@@ -60,7 +60,7 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 
 ## 手机版
 
-低于 760 点时，页面以底部标签栏形式显示，面板通过切换器一次显示一个（游戏、选项、会话）。Android 和 iOS 没有控制或更新页面。
+低于 760 点时，页面以底部标签栏形式显示，面板通过切换器一次显示一个（游戏、选项、会话）。Android 和 iOS 没有控制或更新页面。带有文本和按钮的卡片（`gui/theme.py` 中的 `text_row`）会把按钮放在文本下方，银行的排序和筛选菜单各占一行；布局随宽度变化的视图会在窗口越过 760 点时于 `relayout()` 中重新渲染。
 
 ## 游戏页面
 
@@ -136,6 +136,19 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 | 被删除 | 被保留 |
 |---|---|
 | `session/`（捕获、追踪、临时提供）、`logs/`、`pokemon/` 中未使用的生成或导入提供；空文件夹 | 一分钟以内的提供或被保存设置和队列引用的提供；收到的文件、银行、存档、密钥、固件、设置；符号链接；自检查后修改的文件 |
+
+## 备份与恢复
+
+设置、存储中的「备份」会写入一个 zip（`pokeldn.app.backup`），内含 `pokeldn-backup.json` 和以下文件夹；「恢复」则读回一个备份。
+
+| zip 中的文件夹 | 来源 |
+|---|---|
+| `settings/settings.json` | 数据文件夹中的 `settings.json` |
+| `pokemon/` | 已生成和导入的报价 |
+| `received/` | 设置中选择的「已接收」文件夹 |
+| `bank/`、`saves/`、`gts/`、`macros/` | 银行、存档、GTS 和宏文件夹 |
+
+`.keys` 文件绝不会写入备份，也不会从备份中恢复，插件及其数据也不包含在内。恢复时会先把当前文件备份到数据文件夹的 `backups/`（保留最新三个），然后将每个文件覆盖到同名位置；备份中没有的文件会保留。设置会写入 `settings.restore.json`，下次启动时在读取设置之前将其就位。备份中位于这些文件夹之外的成员、链接、含 `..` 的路径或未知格式会在写入任何内容之前拒绝整个恢复；数据与其 CRC 不匹配的成员也会中止恢复；已经写入的内容会保留。
 
 ## 你的存档
 
@@ -508,6 +521,12 @@ for t in esp32:ble esp32c6:ble-c6; do
   idf.py -B build/$name merge-bin -o "$OUT/pokeldn-radio-$name.bin"
 done
 unset POKELDN_BLE
+for t in esp32:E32R40T esp32s3:SZPI; do   # the colour screen boards (hardware_esp32.md, The screen)
+  chip=${t%%:*}; name=$(echo ${t#*:} | tr A-Z a-z)
+  POKELDN_DISPLAY=${t#*:} idf.py -B build/$name -D SDKCONFIG="$PWD/build/$name/sdkconfig" set-target $chip
+  POKELDN_DISPLAY=${t#*:} idf.py -B build/$name -D SDKCONFIG="$PWD/build/$name/sdkconfig" build
+  idf.py -B build/$name merge-bin -o "$OUT/pokeldn-radio-$name.bin"
+done
 cd ../pad
 idf.py -B build -D SDKCONFIG="$PWD/build/sdkconfig" set-target esp32s3
 idf.py -B build -D SDKCONFIG="$PWD/build/sdkconfig" build

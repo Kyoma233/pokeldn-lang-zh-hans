@@ -370,9 +370,13 @@ SSD1306 128x64 OLED 可选，I2C 接口（SSD1315 和 SSD1309 模块也可用）
 | ESP32-C3 | GPIO5 | GPIO6 | 0.42 英寸 OLED 板自带的 72x40 屏幕，第二个探测 |
 | ESP32-C6 | GPIO22 | GPIO23 | XIAO D4, D5 |
 
-常见的四针模块自带电压调节器和上拉电阻；其地址电阻选择 0x3C（丝印 0x78）或 0x3D（0x7A）。固件设置段重映射（`A1`）、反转 COM 扫描（`C8`）和替代 COM 引脚（`DA 12`）。ESP32-C3 0.42 英寸 OLED 板的 72x40 面板显示帧的列 30..101 和行 24..63；在这些引脚上的屏幕会显示紧凑场景（一行最多 12 个字符，半尺寸精灵），由 `tools/ldn/screen_preview.py --panel 72x40` 离线渲染。
+常见的四针模块自带电压调节器和上拉电阻；其地址电阻选择 0x3C（丝印 0x78）或 0x3D（0x7A）。固件设置段重映射（`A1`）、反转 COM 扫描（`C8`）和替代 COM 引脚（`DA 12`）。ESP32-C3 0.42 英寸 OLED 板的 72x40 面板显示帧的列 30..101 和行 24..63。
 
-没有主机命令时，屏幕显示收音机状态：空闲、加入中或托管中、已链接，并统计每个方向的帧数。在收音机活动或动画播放时，以及最后一次 DISPLAY、HELLO 或 BOOT 按下后 60 秒内，屏幕处于最大亮度；之后调暗到对比度 1，预充 `22`（`81 01 D9 22`），600 秒后关闭（`AE`）。较低的预充会导致闪烁。空闲场景每 60 秒移动 2 像素以防止烧屏。`tests/test_esp32_screen.py` 保存这些计时。
+每个面板运行相同的场景（`scene.c`）、相同的时序和相同的音效提示；只有布局数字不同。每个场景由一个函数根据保存面板尺寸和各部分位置的 `view_t` 绘制。72x40 视图是紧凑的：一行最多 12 个字符的标题和半尺寸精灵。彩色面板（`panel_spi.c`）按整数倍绘制 128x64 帧，点亮像素为 `#47AEFA`、背景为 `#0B0B0D`（`screen.h` 中的 `SCREEN_LIT_RGB`、`SCREEN_DARK_RGB`），与应用镜像使用的两种颜色相同。`tools/ldn/screen_preview.py OUT.gif [--panel 72x40]` 离线渲染脚本会话；`tests/test_screen_render.py` 将应用的镜像（`pokeldn.app.screen_render`）与固件在两种视图上的画面和提示逐帧、逐提示对照。
+
+一个精灵球会在 900 毫秒内左右左摇晃三次，表示正在捕获：搜索时每 3 秒一次，空闲场景每 4 秒一次，以及收到的球落下后、打开之前一次。
+
+没有主机命令时，屏幕显示收音机状态：空闲、加入中或托管中、已链接，并统计每个方向的帧数。在收音机活动或动画播放时，以及最后一次 DISPLAY、HELLO 或 BOOT 按下后 60 秒内，屏幕处于最大亮度；之后调暗到对比度 1，预充 `22`（`81 01 D9 22`），600 秒后关闭（`AE`）。较低的预充会导致闪烁。彩色面板的背光由 5 kHz 的 LEDC PWM 驱动：开启时 95%，调暗时 12%，关闭时 0。空闲场景每 60 秒移动 2 像素以防止烧屏。`tests/test_esp32_screen.py` 保存这些计时。
 
 DISPLAY（`0x0E`）携带一个操作：
 
@@ -387,7 +391,7 @@ DISPLAY（`0x0E`）携带一个操作：
 |---|---|---|
 | auto | 0 | 收音机的状态 |
 | trade | 1 | 插槽 0，显示 "offering" 和 line |
-| traded | 2 | 插槽 0 离开其球（2.1 秒），数据包交叉直到保持，一个球到达并打开（1.6 秒），然后插槽 1 "received" 10 秒 |
+| traded | 2 | 插槽 0 离开其球（2.1 秒），数据包交叉直到保持，一个球落下（0.6 秒）、摇晃（0.4 秒）并打开（0.6 秒），然后插槽 1 "received" 10 秒 |
 | gift | 3 |  holding 插槽 2 的 Wonder Card |
 | gifted | 4 | 卡片离开，然后 "delivered!" |
 | arrived | 5 | 等待的 traded 或 gifted show 带其球进来 |
@@ -409,9 +413,25 @@ show 等待 playing traded 或 gifted show；show 在收音机返回空闲时结
 
 时间是手动标记的（最多晚 2 秒）。启动器在动画后的消息调用 `arrived`。精灵是 PokeAPI 的 FireRed/LeafGreen 版本，种族编号在 386 之前使用 FireRed/LeafGreen 版本，之后使用默认版本，裁剪、缩放到最多 64（卡片上为 40）并阈值为单色，保留内部线条为暗色。`tools/ldn/esp32_screen.py --port PORT` 在板子上播放交易和礼物；`tools/ldn/screen_preview.py OUT.gif` 离线渲染脚本会话。
 
+### 音效
+
+`scene_sound()` 为每一帧开始的提示命名；带扬声器的开发板会播放它，其他开发板忽略。新提示会打断上一个。`sfx.c` 在开发板上合成每一个提示：设定占空比的方波和噪声，均为原创序列。`tools/ldn/screen_preview.py --sounds DIR` 会把每个提示和整段会话写成 WAV 文件。
+
+| cue | when, in ms after the show starts | sound |
+|---|---|---|
+| linked | 主机入座时（收音机首次计数到 1 的那一帧） | 两个上升音符 |
+| recall | traded，700 | 下降滑音 |
+| send | traded，1100；gifted，0 | 上升滑音 |
+| data | traded，从 2600 起每 1000 一次，直到对方到来前 300 | 短促的嘀声 |
+| arrive | 对方到来时 | 下降滑音 |
+| wobble | 到来后 600 | 三声点击 |
+| open | 到来后 1000 | 一声点击和一个上升音符 |
+| received | 到来后 1600 | 五音符短曲 |
+| delivered | gifted，900 | 三音符短曲 |
+
 ### E32R40T 板
 
-E32R40T（作为 4.0 英寸 ESP32-32E 显示器出售）是一块经典 ESP32，配备 480x320 ST7796S 面板通过 SPI。其固件是独立构建的，`POKELDN_DISPLAY=E32R40T` 在 `idf.py` 的环境中（默认为 `OLED`）；发布镜像为 OLED 构建。
+E32R40T（作为 4.0 英寸 ESP32-32E 显示器出售）是一块经典 ESP32，配备 480x320 ST7796S 面板通过 SPI。其固件是独立构建的，`POKELDN_DISPLAY=E32R40T` 在 `idf.py` 的环境中；发布版以 `pokeldn-radio-e32r40t.bin` 提供。
 
 | signal | GPIO |
 |---|---|
@@ -419,7 +439,26 @@ E32R40T（作为 4.0 英寸 ESP32-32E 显示器出售）是一块经典 ESP32，
 | backlight, lit while high | 27 |
 | RGB LED, lit while low: red, green, blue | 22, 16, 17 |
 
-面板以 3 倍显示 128x64 帧（384x192），黑白反色，SPI 频率 40 MHz。GPIO2 是面板的 DC，因此板子的 LED 是 GPIO17 上的蓝色。背光在 OLED 关闭时也会关闭。
+面板以 3 倍显示 128x64 帧（384x192），SPI 频率 40 MHz。GPIO2 是面板的 DC，因此板子的 LED 是 GPIO17 上的蓝色。
+
+### szpi 开发板
+
+LCKFB szpi ESP32-S3 开发板（立创·实战派，xiaozhi 的 `lichuang-dev` 板）是一块带 2.0 英寸 320x240 ST7789 面板的 ESP32-S3-WROOM-1 N16R8，由 ES8311 编解码器驱动扬声器，还有 ES7210 麦克风 ADC、摄像头和 FT6336 触摸控制器。其固件为 esp32s3 目标上的 `POKELDN_DISPLAY=SZPI`；发布版以 `pokeldn-radio-szpi.bin` 提供。麦克风、摄像头和触摸未被使用。引脚来自 xiaozhi-esp32 的开发板文件。
+
+| part | pins |
+|---|---|
+| I2C，扩展器和编解码器共用 | SDA GPIO1，SCL GPIO2 |
+| 位于 0x19 的 PCA9557 扩展器 | bit 0 LCD CS（低电平：选中），bit 1 功放（高电平：开），bit 2 摄像头断电（高电平：关） |
+| SPI3 上的 ST7789，模式 2 | MOSI 40，SCLK 41，DC 39；MADCTL `60`，反相开启 |
+| 背光，低电平点亮 | GPIO42 |
+| 位于 0x18 的 ES8311，I2S | MCLK 38，BCLK 14，WS 13，DOUT 45 |
+| BOOT | GPIO0 |
+| WS2812 RGB LED | GPIO48 |
+
+面板以 2 倍显示 128x64 帧（256x128）。开发板的 LED 是 WS2812，PWM LED 驱动器无法驱动；此构建没有 LED。编解码器以 16 kHz、16 位运行，MCLK 为来自 ESP32-S3 的 256 fs，作为 I2S 格式的从设备，增益 0 dB；功放在提示时打开，并在最后一个提示结束后 600 毫秒关闭。
+
+- 切勿用恒定电平驱动背光：其升压转换器需要开关信号，否则会保持熄灭。
+- SPI 模式 0 会让面板保持全黑；需要模式 2。
 
 ## 构建与烧录
 
@@ -503,3 +542,5 @@ ELEGOO 板子（ESP32-D0WD-V3 rev 3.1，CP2102，921600 波特率）能与零售
 - 接入点接收路径中，什么原因导致错过站点的 OFDM 首拷贝尚不清楚（参见 [Receive misses on two boards](#receive-misses-on-two-boards)）。
 - ESP32-WROOM-32E 模块是否比 ELEGOO 板的无品牌模块少丢失帧尚未测量。用户报告称较旧的 ESP32-WROOM-32 不可靠；一个 WROOM-32 DevKit 无法解调 OFDM（参见 [A board that decodes no OFDM](#a-board-that-decodes-no-ofdm)）。
 - 加入板子接入点的 Scarlet 主机可以确认公告但发送无端口 2 的加入（参见 [Scarlet and Violet](sv.md#unresolved)）。
+- szpi 构建尚未在开发板上实测：它已完成构建，场景和音效可离线运行。开发板的 USB-C 是接到 ESP32-S3 自带的 USB（S3 构建使用的链路）还是桥接芯片，其公开文件中没有说明。
+- E32R40T 构建的 PWM 背光及其两种新颜色尚未在该开发板上实测。
