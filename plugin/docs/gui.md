@@ -435,6 +435,10 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 
 `runner.Process(..., popups=app.popups)` 设置 `POKELDN_POPUPS=1`；子进程在 stdout 上写入 `[popup]` 和 JSON，并在 stdin 上读取 `[popup] {"id", "n", "answer"}`（`pokeldn.app.runner.child`）；`n` 使对替换的弹出窗口的晚期答案不会触发任何操作。`pokeldn.app.popups.Manager` 保留它们，`gui.popups.Dialogs` 绘制它们。应用自身的弹出窗口报告更新失败、插件禁用和为设置训练师发送接收者礼物（[交易](gift_simulated.md#the-trade)）。
 
+## 设置搜索
+
+设置页顶部的输入框只显示标题或说明中包含所输入文字的卡片（不区分大小写），并归在各自的分区标题下。搜索在高级设置隐藏时也会覆盖它们。游戏工具的「全部选项」标签页有自己的选项搜索。
+
 ## 进度
 
 运行会打印 `[progress] DONE TOTAL UNIT TITLE`（`pokeldn.progress.show`，API 1.7；`UNIT` 是 `bytes` 或 `items`），以绘制一个带有数量、30 秒速率和剩余时间的进度条，每个标题每秒最多四行。`[save]` 行绘制相同的进度条。
@@ -557,6 +561,7 @@ python scripts/pack_app.py
 - 在 Linux 上，`pokeldn/app/paths.py` 恢复用户的 `LD_LIBRARY_PATH`（捆绑的 `libstdc++` 会破坏 Fedora 的 EGL），并设置 `FLET_LINUX_DISTRO`。
 - Unicorn 在 Control Flow Guard 下会中止，错误代码为 `0xC0000409`
 （[unicorn#2281](https://github.com/unicorn-engine/unicorn/issues/2281)）；打包器清除 `pokeldn.exe` 中的 `GUARD_CF`（`0xC160` 到 `0x8160`）。永远不要在冻结检查中启用 `faulthandler`。
+- 在 Windows 上，`pokeldn.exe` 属于 GUI 子系统（subsystem 2），不会打开控制台窗口。旁边的 `pokeldn-run.exe` 是同一文件，但子系统为 3：每次运行、烧录和辅助进程都用管道与 `CREATE_NO_WINDOW` 启动它，这样日志能回到应用，关闭的 stdin 可以终止它。
 
 ### 应用图标
 
