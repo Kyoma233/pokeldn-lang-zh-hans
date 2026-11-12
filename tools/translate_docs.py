@@ -31,6 +31,7 @@ SRC = ROOT / "tools/work/pokeldn/docs"
 DST = ROOT / "plugin/docs"
 LOG = ROOT / "tools/work/translate_logs"
 TODO = ROOT / "tools/todo-docs.txt"
+HASHES = ROOT / "tools/docs-source-hash.toml"
 MESSAGES_FILE = ROOT / "plugin/messages.toml"
 LOG.mkdir(parents=True, exist_ok=True)
 
@@ -108,6 +109,32 @@ SYSTEM = """你是资深技术文档译者，把 pokeldn（宝可梦本地无线
 
 # Chunk large docs by ## headings when over this many chars
 CHUNK_CHARS = 12000
+
+
+def load_source_hashes() -> dict:
+    if not HASHES.exists():
+        return {}
+    import tomllib
+    return tomllib.loads(HASHES.read_text(encoding="utf-8"))
+
+
+def save_source_hashes(data: dict) -> None:
+    lines = ["# sha256 of the English docs/*.md last translated into plugin/docs"]
+    for k in sorted(data):
+        lines.append(f"{json.dumps(k, ensure_ascii=False)} = {json.dumps(data[k], ensure_ascii=False)}")
+    HASHES.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def record_source_hash(name: str) -> None:
+    if not name.endswith(".md"):
+        name = name + ".md"
+    src = SRC / name
+    if not src.is_file():
+        raise SystemExit(f"English doc not found: {name}")
+    data = load_source_hashes()
+    data[name] = hashlib.sha256(src.read_bytes()).hexdigest()
+    save_source_hashes(data)
+    print(f"  recorded source hash for {name}", flush=True)
 
 
 def chat(messages: list[dict], temperature: float = 0.2, retries: int = 5) -> str:
@@ -245,6 +272,7 @@ def translate_file(name: str) -> str:
     result = fm + zh_body
     out = DST / name
     out.write_text(result, encoding="utf-8")
+    record_source_hash(name)
     (LOG / f"{name}.ok").write_text(f"{len(text)}->{len(result)}\n", encoding="utf-8")
     cjk = len(re.findall(r"[\u4e00-\u9fff]", result))
     print(f"DONE  {name}: {len(result)} bytes, cjk={cjk}", flush=True)
@@ -274,10 +302,19 @@ def docs_from_todo() -> list[str]:
 
 
 def main():
-    if len(sys.argv) > 1:
-        todo = [a if a.endswith(".md") else a + ".md" for a in sys.argv[1:]]
+    args = [a for a in sys.argv[1:] if a != "--record-hashes"]
+    record_only = "--record-hashes" in sys.argv[1:]
+    if args:
+        todo = [a if a.endswith(".md") else a + ".md" for a in args]
     else:
         todo = docs_from_todo()
+    if record_only:
+        if not todo:
+            raise SystemExit("usage: translate_docs.py --record-hashes [gui.md ...]")
+        for n in todo:
+            record_source_hash(n)
+        print("RECORDED", todo, flush=True)
+        return
     if not todo:
         raise SystemExit("usage: translate_docs.py [gui.md ...]  (or write tools/todo-docs.txt)")
     missing = [n for n in todo if not (SRC / n).is_file()]

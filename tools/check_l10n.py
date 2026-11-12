@@ -10,6 +10,7 @@ Exit 1 if anything still needs translation. Writes todo files with --write-todo.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -86,6 +87,18 @@ def write_lines(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
+def english_doc_hash(name: str) -> str | None:
+    path = repo / "docs" / name
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def docs_already_translated(name: str, hashes: dict) -> bool:
+    zh = PLUGIN / "docs" / name
+    return zh.is_file() and hashes.get(name) == english_doc_hash(name)
+
+
 en = load_toml(repo / "pokeldn/app/data/strings.en.toml")
 zh = load_toml(PLUGIN / "strings.toml")
 snap = load_toml(HERE / "strings.en.snapshot.toml")
@@ -114,7 +127,11 @@ if prev and curr and prev != curr:
     else:
         diff = doc_diff(prev, curr)
 
-docs_todo = sorted(set(diff["A"] + diff["M"] + docs_missing))
+source_hashes = load_toml(HERE / "docs-source-hash.toml")
+docs_todo = sorted(
+    n for n in set(diff["A"] + diff["M"] + docs_missing)
+    if not docs_already_translated(n, source_hashes)
+)
 
 print(
     f"upstream keys: {len(en)}  translated: {len(en) - len(new)}  new/untranslated: {len(new)}  "

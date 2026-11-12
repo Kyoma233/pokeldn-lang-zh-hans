@@ -21,7 +21,8 @@ plugin_ver=$(sed -n 's/^version = "\(.*\)"/\1/p' plugin/plugin.toml | head -1)
 [ "$plugin_ver" = "$VER" ] || { echo "plugin.toml version=$plugin_ver，与 $VER 不一致"; exit 1; }
 
 git add -- plugin/strings.toml plugin/messages.toml plugin/terms.toml plugin/docs plugin/plugin.toml \
-        pokeldn-source.json README.md tools/strings.en.snapshot.toml
+        pokeldn-source.json README.md tools/strings.en.snapshot.toml \
+        tools/docs-source-hash.toml tools/check_l10n.py tools/translate_docs.py tools/publish.sh
 
 if git diff --cached --quiet; then
   echo "没有要提交的文件变更"

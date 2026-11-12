@@ -267,7 +267,7 @@ zlib 流解压为记录，标签 0x20：
 | 启动器 | 链式交易 |
 |---|---|
 | `bin/lgpe_host.py --next-offer` | 用下一个记录答复每个后续交易的选择 |
-| `bin/lgpe_join.py --offer ...` | 用下一个记录答复主机的类型 4；在最后一次后不再答复 |
+| `bin/lgpe_join.py --offer ...` | 用下一个记录答复主机的类型 4；在最后一次之后，会把刚收到的记录作为第一槽发出（主机会把它计入），并且不再答复后续交换 |
 | `bin/lgpe_host.py --lead` | 为 `bin/lgpe_join.py` 拼演主机角色；`tests/test_esp32.py` |
 
 交换 2 时，双方写入收到的记录；撤回的报价写入空。
