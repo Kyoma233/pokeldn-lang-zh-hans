@@ -1,4 +1,7 @@
 tools/work/
 tools/todo.toml
+tools/todo-messages.toml
+tools/todo-docs.txt
 dist/
 *.pem
+tools/__pycache__/
