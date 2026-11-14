@@ -196,6 +196,8 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 进行批量导出到文件夹、移出交易或移除。精灵图的裁剪与其 SHA-256 一起保存在精灵图缓存的
 `index.json` 中，因此盒子在显示过的 PNG 后无需再次解码即可打开。
 
+宝可梦面板中的「制作副本」会把同一条记录再存入仓库一份，并拥有自己的 id 和 HOME 追踪码（`bank.duplicate`）；交换或移除只会拿走其中一份，另一份仍会留下。
+
 宝可梦的面板显示其战斗组，从辅助程序的 `check`（`battle`）获取：IV、努力值和属性值，
 按 Showdown 顺序显示，并以英文展示其 Showdown 集合，便于复制为 Showdown 集合。
 努力值列显示为 Let's Go 的 AV（`IAwakened`）、Legends Arceus 的 GV（如游戏所示，

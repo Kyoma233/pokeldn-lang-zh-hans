@@ -69,6 +69,7 @@
 "bank.dex_no_shiny" = "尚无闪光"
 "bank.done_selecting" = "完成"
 "bank.drop_a_file_here" = " 将宝可梦文件、游戏存档或 PKSM 仓库拖到这里，导入其中的内容。"
+"bank.duplicate" = "制作副本"
 "bank.edit_44b87f" = "编辑 {value0}"
 "bank.edit_464c4f" = "编辑"
 "bank.evs" = "努力值"
