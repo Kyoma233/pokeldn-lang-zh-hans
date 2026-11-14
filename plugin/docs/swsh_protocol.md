@@ -153,12 +153,16 @@ elementId 10000 上的四个字节由 `0x006d7b40` 在 `element+0xa8` 构建：
 `lincoln-lm/swsh-lan-client`）：
 
     0x000  six PK8 records, party form, 0x158 each          -> 0x810
-    0x810  u32   party count
+    0x810  u8    party count
+    0x811  u8    a party slot index
+    0x812  u16   zero
     0x814  MyStatus, 272 bytes      TID/SID at 0xA0, trainer name at 0xB0
     0x924  TrainerCard, 456 bytes   trainer name at 0x00, save start date at 0x170
     0xAEC  the player profile, 266 bytes                     -> 0xBF6
     0xBF6  392 bytes, the Battle Stadium block; zero for Link Trade
     0xD7E  2 bytes of padding                                -> 0xD80 = 3456
+
+写入器 `0x00784f90` 将队伍对象的字节 `+0x88`（计数）和 `+0x89` 逐字节存到 0x810 和 0x811，然后将 0x812 作为 u16 清零 [`0x00785130`]。读取器 `0x007856b8` 把这两个字节载回 `+0x88` 和 `+0x89`，两者不一致时用实际读到的槽位数替换计数，并且从不读取 0x812。`+0x89` 保存一个槽位索引：加入成员时将其设为第一个以模式 2 通过 `0x77d610` 的槽 [`0x00784188`]，槽位交换时会一并带走它 [`0x00784580`]。模式 2 检测的条件尚未查明。零售版《剑》在六只宝可梦时发送 `06 02 00 00`，五只时发送 `05 02 00 00`。
 
 MyStatus 和 TrainerCard 是 PKHeX 的存档块（`Saves/Substructures/Gen8/SWSH/`）。构建者为
 `0x0110c180`，接收者为 `0x0110cff0`。连接交换（`0x010967f0`）和密码匹配

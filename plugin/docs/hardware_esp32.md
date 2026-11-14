@@ -475,6 +475,10 @@ ESP-IDF v6.1（标签 `v6.1`，提交 `fff9895c82d744c7237be8847347bdd1b07c6643`
 esptool 根据端口的 USB ID 选择复位方式，但 esp-pylib 1.1.5 拒绝为 URL 端口（如 Android 的 `android://board`）查找 ID；没有 ID 时，它会向 ESP32-S3、C3 或 C6 发送经典的 DTR/RTS 复位，芯片永远无法进入其 ROM 加载器，日志显示 `Failed to get VID/PID`。Android 应用从板子自己的 USB ID 响应查找（`pokeldn/app/android.py`）。一旦 ID 已知，Linux 或 Android 上的 CP210x 板子通过 `ioctl` 操作端口的 `fileno()` 同时写入 DTR 和 RTS 信号进行复位；Android 端口没有文件描述符，改为通过一次 CDC `SET_CONTROL_LINE_STATE` 发送两条信号线。
 [桌面构建](gui.md) 涵盖了打包所有四个镜像。
 
+### stub 刷写器无法启动的板子
+
+部分经典 ESP32 板子能响应 ROM 加载器，却永远无法启动 esptool 的 stub（`Failed to start stub flasher`）；曾有一块这样的板子把 eFuse 块 0 读成全零（`MAC: 00:00:00:00:00:00`，修订版本 v0.0）。其 ROM 还会丢掉改到 460800 的波特率切换，并在部分写入中途停止。遇到该错误时，`gui.board.flash` 会重新连接，并以连接时的波特率加上 `--no-stub` 写入，最多 `ROM_ATTEMPTS`（4）次连接：一份 777 KB 镜像大约需要 80 秒。任何其他失败都会结束安装。
+
 ### 蓝牙
 
 带有 `POKELDN_BLE=1` 的构建还通过蓝牙低功耗携带主机链接，适用于无法打开 USB 串口设备的 iOS 应用；此时板子仅需 USB 供电。

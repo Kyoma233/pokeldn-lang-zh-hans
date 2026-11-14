@@ -2,7 +2,7 @@
 
 [pokeldn](https://github.com/Decryptu/pokeldn) 的简体中文语言包插件，翻译了全部 1945 条界面文案。宝可梦相关术语采用官方简体中文译名。
 
-- 适用版本：pokeldn v0.65.1。
+- 适用版本：pokeldn v0.65.2。
 - 桌面版和安卓版都能装，用官方原版 APK 就行。
 
 ## 安装
