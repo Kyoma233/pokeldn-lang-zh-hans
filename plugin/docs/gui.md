@@ -7,7 +7,7 @@ title: Desktop builds
 桌面应用是 pokeldn 在 macOS、Windows 和 Linux 上的界面。一次发布会打包 PKHeX 和适用于 ESP32、ESP32-S2、ESP32-S3、ESP32-C3 和 ESP32-C6 的无线固件。用户需提供 `prod.keys`。
 
 1. 设置：选择 `prod.keys`。
-2. 主板页面：选择 USB 主板并安装无线固件。安装时会选择芯片自带的镜像；来自文件的镜像会与芯片校验。S3、C3 和 C6 通过原生 USB 串口/JTAG 连接；S2 芯片会被拒绝。
+2. 主板页面：选择 USB 主板并安装无线固件。安装时会选择芯片自带的镜像；来自文件的镜像会与芯片校验。S3、C3 和 C6 通过原生 USB 串口/JTAG 连接，S2 通过原生 USB CDC 连接。
 3. 选择游戏和工具，准备宝可梦或文件，按照控制台步骤操作并按 Start。收到的宝可梦会进入设置文件夹，通过 Output 按钮旁的按钮打开。
 
 每个交易工具的宝可梦可留空：Start 时 PKHeX 会为你的训练家构建一个随机合法宝可梦（`command.prepare`），每次运行都会更新。
