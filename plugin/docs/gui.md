@@ -25,6 +25,10 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 | Windows | 解压 zip 并运行 `pokeldn.exe`，`_internal` 需放在旁边；SmartScreen：更多信息，仍然运行。无 COM 端口：[Windows USB 驱动](#windows-usb-drivers) |
 | Linux | 需要 GTK 3 和 libsecret；`sudo usermod -aG dialout $USER`（Arch 系统为 `uucp`），然后重新登录。参见 [Linux 串口](#linux-serial-ports) |
 
+### 损坏的设置
+
+`settings.json` 在启动时读取（`pokeldn.app.settings.load`）。若文件不是 JSON，或某个字段的值类型不对，会先把它复制为旁边的 `settings.json.bad`，然后再做任何替换；只有无法读取的字段会回到默认值。随后应用会显示哪些字段被重置，以及旧文件在哪里。
+
 ## Android 设置要求
 
 [Android 应用](../examples/android/README.md) 是手机上的本界面。主板页面会在插入、拔出 USB、关闭 USB 提示和从设置返回时重新读取 USB 状态。原生 USB 主板（`303a:1001`）插入时会自动打开应用。
@@ -130,6 +134,8 @@ macOS 保留原生窗口按钮；Windows 和 Linux 在应用标题栏中绘制�
 无端口时，主板页面读取 `/sys/bus/usb/devices` 并命名一个无 tty 的桥接器（参见 `gui/board.py` 中的 `bridges_without_port`）。
 
 ## 本地存储
+
+每个工具会将其表单、礼物和提供内容记在 `settings.json`（`tool_values`）中。每个工具上方工具栏里、文档按钮旁边的圆形箭头按钮，会在确认后忘掉该工具的选择；文件、银行和设置会保留。
 
 设置中的存储显示可回收的空间；清除本地文件会在确认后在后台删除，并暂时阻止会话和刷写操作。请先保存任何有助于报告 bug 的文件。
 
@@ -268,7 +274,7 @@ Gen 1 或 Gen 2 的条目是包含两个名称的单宝可梦列表：Gen 1 为 
 | 其他格式 | 移除携带物品，忘记 Gen 3/4 的 HM 招式；若合法，移动到第一个接受它的游戏：火红／叶绿、朱／紫、剑／盾、BDSP、Legends Arceus、Legends Z-A |
 
 非法记录、校验和错误、其他游戏的蛋以及不可达物种将被拒绝。
-`Bank/.imported` 保存每条导入记录的 SHA-256，因此重新导入存档时仅会导入变更过的记录。
+`Bank/.imported` 保存每条导入记录的 SHA-256，因此重新导入存档时仅会导入变更过的记录。此前已导入、现已不在银行中（已交换或已移除）的记录，会显示为「此前已导入」，并带有「再次导入」按钮：它会从该文件中去掉对应行并将其存入银行。点「移除」会立刻去掉被移除记录的那一行；已完成的交换会保留该行。
 
 ### 未解决问题
 
@@ -343,6 +349,16 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 因此打包应用会从 `Contents/Helpers/pokeldn-bluetooth` 运行服务，
 这是一个裸签名副本，`_internal` 链接到 `../Frameworks`。
 
+## 开发板的屏幕
+
+设置中的「显示开发板屏幕」会在会话面板顶部绘制开发板 128×64 像素的屏幕，无论开发板是否接了屏幕（[屏幕](hardware_esp32.md#the-screen)）。应用会为一次运行设置 `POKELDN_SCREEN_MIRROR=1`；该运行随后会打印它发出的每条 DISPLAY 命令，并每秒一次从 STATUS 打印开发板的模式、已入座站点、数据帧和 BOOT 按下次数：
+
+    [screen] reset
+    [screen] cmd HEX
+    [screen] radio MODE STATIONS RX TX PRESSES
+
+`pokeldn.app.screen_render` 通过固件 `scene.c` 和 `screen.c` 的 Python 副本重放这些内容；`tests/test_screen_render.py` 将每一帧对照已编译的 C 代码。面板按固件的 50 ms 帧绘制，随开发板变暗，并在空闲十分钟后关闭。
+
 ## 宝可梦精灵图
 
 图像按需从 [PokeAPI](https://github.com/PokeAPI/sprites) 获取，缓存于 `sprites/`。
@@ -388,9 +404,6 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 每张卡显示训练家、宝可梦（等级为 Our Pokemon 的四五分之一）、Tera 属性、特性和招式，
 而受欢迎的伙伴会带有蓝色或银色条（参见 [Favoured partners](sv_raid.md#favoured-partners)）。
 每次点击会按插槽顺序传递 `--raid-partner`；缺少该插槽的选择会被丢弃。
-文件名：gui.md
-这是第 3/3 段（请仅翻译本段，保持与前后段落标题层级的衔接）。
-
 ## 联盟环
 
 《紫罗兰》版本的联盟环工具可根据四位数字的链接代码，将一个控制台加入一个环中
@@ -445,9 +458,68 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 
 `runner.Process(..., popups=app.popups)` 设置 `POKELDN_POPUPS=1`；子进程在 stdout 上写入 `[popup]` 和 JSON，并在 stdin 上读取 `[popup] {"id", "n", "answer"}`（`pokeldn.app.runner.child`）；`n` 使对替换的弹出窗口的晚期答案不会触发任何操作。`pokeldn.app.popups.Manager` 保留它们，`gui.popups.Dialogs` 绘制它们。应用自身的弹出窗口报告更新失败、插件禁用和为设置训练师发送接收者礼物（[交易](gift_simulated.md#the-trade)）。
 
+## 运行状态
+
+运行在等待时，会话面板会显示「正在等待主机」及等待时间；60 秒仍无主机时，会询问主机是否停留在步骤所指的画面。加入成功后显示「主机已连接」。开发板后端在无线电首次主持或扫描时打印一次 `[link] waiting`，随后在每个站点或连接变化时打印 `[link] joined` 和 `[link] left`（`pokeldn.ldn.show_link`，仅限应用启动的运行；无线电插件不打印）。
+
+### 运行失败时
+
+`pokeldn.app.failure` 读取运行日志并指出一个原因，以及对应的修复页面：
+
+| 原因 | 匹配内容 | 按钮 |
+|---|---|---|
+| 开发板断开 | `[esp32] The board's USB connection failed`、`the board left USB` | 开发板 |
+| 端口被占用 | `Resource busy`、`Access is denied`、errno 13 | 开发板 |
+| 固件不匹配 | `board speaks protocol N, host speaks M` | 开发板 |
+| 开发板无响应 | 对 HELLO 无答复，端口设备已消失 | 开发板 |
+| 缺少密钥 | `prod.keys has no NAME`（`ldn.MissingKey`） | 设置 |
+| 加入失败 | `the board could not join` | |
+| 无主机 | 有 `[link] waiting` 但从未出现 `[link] joined`，且未完成交换 | |
+| 其他情况 | 回溯信息且退出码非零 | 复制日志 |
+
+第一条匹配的行决定原因。玩家主动停止的运行，或已完成一次交换的运行，不会报告。神秘礼物信标（`Tool.joins` 为 false）永远不会归咎于主机。
+
+### 重试失败的交换
+
+若开启设置中的「重试失败的交换」，一次因可重试原因（开发板断开、加入失败、无主机）结束的交换运行，会在 15 秒后带着尚未交换的队列中的宝可梦再开一轮，最多连续三次；完成一次交换的运行会重置计数。「不要重试」会取消等待；点「开始」或选择其他工具也会取消。
+
 ## 设置搜索
 
 设置页顶部的输入框只显示标题或说明中包含所输入文字的卡片（不区分大小写），并归在各自的分区标题下。搜索在高级设置隐藏时也会覆盖它们。游戏工具的「全部选项」标签页有自己的选项搜索。
+
+## 键盘快捷键
+
+在 macOS 上用 Cmd，其他系统用 Ctrl：
+
+| 按键 | 操作 |
+|---|---|
+| 1 到 6 | 游戏、开发板、仓库、GTS、手柄、文档 |
+| , | 设置 |
+| Enter | 会话面板的「开始」，或「停止并开始」（在可按下时） |
+| . | 停止 |
+
+## 更大文字
+
+设置中的「更大文字」会将所有文字放大 15%（`gui/theme.py`，`text_scale`），在启动时读取。最浅的文字颜色 `#98989D` 在其所在的最浅表面上仍保持 4.8:1 的对比度。
+
+## 性能
+
+界面必须在弱 GPU 或软件渲染器的电脑上，以及在慢速 CPU 上保持流畅。
+
+| 代价 | 规则 |
+|---|---|
+| Flet 1.1 的桌面客户端用 Impeller 渲染（Flutter 3.47 的默认）；在弱 GPU 上比 Flet 1.0 所用的渲染器 Skia 更慢 | 桌面应用在启动客户端前设置 `FLET_NO_IMPELLER=true`，随后改用 Skia 渲染 |
+| 背景模糊会在每次重绘时对整个区域重新计算，包括菜单行的悬停 | 只有浮在滚动内容之上的玻璃才模糊（`t.glass(floating=True)`，工具栏凹口）；位于裸棋盘格上的面板使用平面的 `GLASS_ON_GRID`，即模糊后棋盘格的平均色 |
+| 未调用 `update()` 的事件处理函数会落入 Flet 的自动更新，即在 Python 中对整页做 diff（游戏页面约 800 个控件：在 M4 上需 5 到 60 ms） | 没有改动、或已自行更新改动内容的处理函数会调用 `ft.context.disable_auto_update()`：未命中快捷键时的页面按键处理、尺寸和滚动处理，以及文本框的 `on_change` |
+| 即使没有处理函数，Flet 也会把窗口焦点和主题变化发给 Python，每次都以整页 diff 结束 | 页面的生命周期和亮度处理函数会禁用自动更新；调整大小仅在布局变化时更新 |
+| 控件的 `update()` 会 diff 其整棵子树，因此改滚动淡出的渐变或一处内边距会走遍整个工具主体（8 到 13 ms） | `t.update_own(control)` 只发送该控件自身及其子控件的属性，0.3 ms；更深的改动等到下一次普通更新 |
+| 在宽度为 0 时构建的字段网格会在第一次尺寸事件时重新布局，并走一遍其子树 | `Flow` 一开始就使用上次测量过的、相同瓦片尺寸网格的宽度 |
+| 更新或插件更新检查会用整页更新重绘侧栏 | 它只更新侧栏本身 |
+| 工具字段的 `on_change` 每按一键就触发一次 | 值会立即存储；设置保存和会话面板重绘在最后一次按键的 0.25 秒后运行（`GamesView.settle`） |
+| Flet 每 10 ms 采样一次滚动和尺寸事件，每次都是发往 Python 的消息 | 带淡出的列表每 100 ms 采样一次 |
+| 控制器开发板的轮询在应用整个生命周期内每 6 秒运行一次 | Windows 在进程内询问 cfgmgr32（`board.present_usb_ids`）；PowerShell CIM 查询是回退方案 |
+
+`tools/gui_patch_profile.py LOG` 会运行界面，并记录每次补丁的耗时、控件数量以及每个事件。
 
 ## 进度
 
@@ -472,6 +544,10 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 
 `scripts/check_update.py ARCHIVE FOLDER` 测试打包应用的更新是否与 127.0.0.1 兼容；
 `POKELDN_UPDATE_URL` 替换端点（`tests/test_app_update.py`）。macOS 是否在 `/Applications` 中请求应用管理权限没有被测量。
+
+## 复制一次交换
+
+交换上的复制按钮会把同一只宝可梦插入为下一次交换。生成的宝可梦会按相同选择再生成一次，因此副本有自己的 PID；晶灿钻石／明亮珍珠会拒绝存档中已有其 PID 的提供。来自文件的宝可梦会按字节原样复制。
 
 ## 文件拖放
 
@@ -571,7 +647,7 @@ python scripts/pack_app.py
 - 在 Linux 上，`pokeldn/app/paths.py` 恢复用户的 `LD_LIBRARY_PATH`（捆绑的 `libstdc++` 会破坏 Fedora 的 EGL），并设置 `FLET_LINUX_DISTRO`。
 - Unicorn 在 Control Flow Guard 下会中止，错误代码为 `0xC0000409`
 （[unicorn#2281](https://github.com/unicorn-engine/unicorn/issues/2281)）；打包器清除 `pokeldn.exe` 中的 `GUARD_CF`（`0xC160` 到 `0x8160`）。永远不要在冻结检查中启用 `faulthandler`。
-- 在 Windows 上，`pokeldn.exe` 属于 GUI 子系统（subsystem 2），不会打开控制台窗口。旁边的 `pokeldn-run.exe` 是同一文件，但子系统为 3：每次运行、烧录和辅助进程都用管道与 `CREATE_NO_WINDOW` 启动它，这样日志能回到应用，关闭的 stdin 可以终止它。
+- 在 Windows 上，`pokeldn.exe` 属于 GUI 子系统（subsystem 2），不会打开控制台窗口。每次运行、烧录和辅助进程都用管道启动 `pokeldn.exe` 本身，这样日志能回到应用，关闭的 stdin 可以终止它。从任一者启动的控制台程序都会自己打开一个窗口，除非传入 `CREATE_NO_WINDOW`：使用 `**NO_WINDOW`（`pokeldn/windowless.py`）；`tests/test_windowless.py` 会检查 `bin/`、`pokeldn/` 和 `gui/` 中的每一次启动。
 
 ### 应用图标
 
