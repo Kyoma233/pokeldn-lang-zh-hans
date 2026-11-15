@@ -13,12 +13,13 @@ nav_order: 1
 | 芯片 | 主机连接 | 合并镜像 |
 |---|---|---|
 | 经典 ESP32（ESP32-D0WD，WROOM-32E） | 通过 USB 串口桥接的 UART0 | `pokeldn-radio.bin` |
+| ESP32-S2（Flipper Zero Wi-Fi Developer Board） | 原生 USB CDC（TinyUSB） | `pokeldn-radio-s2.bin` |
 | ESP32-S3 | 原生 USB 串口/JTAG | `pokeldn-radio-s3.bin` |
 | ESP32-C3 | 原生 USB 串口/JTAG | `pokeldn-radio-c3.bin` |
 | ESP32-C6 | 原生 USB 串口/JTAG | `pokeldn-radio-c6.bin` |
 | 经典 ESP32，ESP32-C6 | 蓝牙 LE（iOS 应用），以及如上 USB | `pokeldn-radio-ble.bin`，`pokeldn-radio-ble-c6.bin` |
 
-所有目标均使用 2.4 GHz 频段；ESP32-S2 不受支持。具有独立 UART 和原生 USB 接口的 S3、C3 或 C6 板子必须使用原生接口（S3 GPIO19/20，C3 GPIO18/19）；通过 UART 接口时固件不会响应。当通过 USB 串口桥接没有固件响应时，桌面应用会从 ROM 引导加载器读取芯片信息（esptool `detect_chip`），并将 S3、C3 或 C6 识别为插入了错误的接口。`303a:1001` 被多个芯片共享；刷写时通过 esptool 检测芯片。
+所有目标均使用 2.4 GHz 频段；S2 见[下文](#the-esp32-s2-flipper-zero-wi-fi-developer-board)。具有独立 UART 和原生 USB 接口的 S2、S3、C3 或 C6 板子必须使用原生接口（S3 GPIO19/20，C3 GPIO18/19）；通过 UART 接口时固件不会响应。当通过 USB 串口桥接没有固件响应时，桌面应用会从 ROM 引导加载器读取芯片信息（esptool `detect_chip`），并将 S2、S3、C3 或 C6 识别为插入了错误的接口。`303a:1001` 被多个芯片共享；刷写时通过 esptool 检测芯片。
 
 | 板子 | 天线 | BOOT | 用户 LED | CPU，任务核心 | 空闲可用堆 | BENCH 通过原生 USB，macOS |
 |---|---|---|---|---|---|---|
@@ -341,7 +342,7 @@ ETH_TX 在驱动中花费约 0.1 ms，中位数等待约 1 ms 直到 TX 完成�
 
 ## 板子的 LED 和按钮
 
-LED 在经典 ESP32 为 GPIO2，在 S3 为 GPIO21（反相），在 C6 为 GPIO15（反相）；C3 固件不触动 LED 引脚。BOOT 在经典 ESP32 和 S3 为 GPIO0，在 C3 和 C6 为 GPIO9；每次按下都会发送 BUTTON（`0x8E`）、闪烁 LED 并唤醒屏幕。在 ELEGOO ESP-32 Type-C 板（CP2102、ESP32-D0WD-V3、非品牌 PCB 天线模块）上，红色 LED 是电源轨，蓝色的是 GPIO2。GPIO2 和 GPIO0 是strapping 引脚；固件仅在启动后才驱动 GPIO2。
+LED 在经典 ESP32 为 GPIO2，在 S3 为 GPIO21（反相），在 C6 为 GPIO15（反相）；S2 和 C3 固件不触动 LED 引脚。BOOT 在经典 ESP32 和 S3 为 GPIO0，在 C3 和 C6 为 GPIO9；每次按下都会发送 BUTTON（`0x8E`）、闪烁 LED 并唤醒屏幕。在 ELEGOO ESP-32 Type-C 板（CP2102、ESP32-D0WD-V3、非品牌 PCB 天线模块）上，红色 LED 是电源轨，蓝色的是 GPIO2。GPIO2 和 GPIO0 是strapping 引脚；固件仅在启动后才驱动 GPIO2。
 
 LED 使用 LEDC PWM（13 位，5 kHz）每 10 毫秒运行一次，伽马 2.2，150 毫秒交叉淡化。
 
@@ -464,16 +465,40 @@ LCKFB szpi ESP32-S3 开发板（立创·实战派，xiaozhi 的 `lichuang-dev` �
 
 固件版本（`firmware/esp32/version.txt`，格式为 `major.minor.patch`，所有目标共享）会在 INFO 中报告为 `version=...`；未版本化的构建显示为 `version unknown`，只要其串口协议匹配即可正常工作。协议号是独立的，仅在通信协议变更时修改。
 
-ESP-IDF v6.1（标签 `v6.1`，提交 `fff9895c82d744c7237be8847347bdd1b07c6643`）构建所有四个目标。使用 `install.sh esp32,esp32s3,esp32c3,esp32c6` 安装其工具，然后激活 IDF 环境（`. scripts/esp_env.sh`）。
+ESP-IDF v6.1（标签 `v6.1`，提交 `fff9895c82d744c7237be8847347bdd1b07c6643`）构建所有五个目标。使用 `install.sh esp32,esp32s2,esp32s3,esp32c3,esp32c6` 安装其工具，然后激活 IDF 环境（`. scripts/esp_env.sh`）。
 
     cd firmware/esp32
-    idf.py set-target esp32   # esp32s3, esp32c3 或 esp32c6 对应不同芯片
+    idf.py set-target esp32   # esp32s2, esp32s3, esp32c3 或 esp32c6 对应不同芯片
     idf.py build
     idf.py -p <port> flash
 
-控制台输出关闭；在经典 ESP32 上，固件自行分配 UART0 的 GPIO1 和 GPIO3（`uart_set_pin`）。桌面应用使用 esptool 检测芯片，并在写入前验证合并镜像的 bootloader 在芯片的 flash 偏移处（ESP32 为 `0x1000`，其他为 `0x0`）：esptool 5.4.0 的 `write_flash` 在镜像以填充字节开头时可能会跳过其芯片检查。切勿从 USB 桥接器 ID 选择固件。
+控制台输出关闭；在经典 ESP32 上，固件自行分配 UART0 的 GPIO1 和 GPIO3（`uart_set_pin`）。桌面应用使用 esptool 检测芯片，并在写入前验证合并镜像的 bootloader 在芯片的 flash 偏移处（ESP32 和 S2 为 `0x1000`，其他为 `0x0`）：esptool 5.4.0 的 `write_flash` 在镜像以填充字节开头时可能会跳过其芯片检查。切勿从 USB 桥接器 ID 选择固件。
 esptool 根据端口的 USB ID 选择复位方式，但 esp-pylib 1.1.5 拒绝为 URL 端口（如 Android 的 `android://board`）查找 ID；没有 ID 时，它会向 ESP32-S3、C3 或 C6 发送经典的 DTR/RTS 复位，芯片永远无法进入其 ROM 加载器，日志显示 `Failed to get VID/PID`。Android 应用从板子自己的 USB ID 响应查找（`pokeldn/app/android.py`）。一旦 ID 已知，Linux 或 Android 上的 CP210x 板子通过 `ioctl` 操作端口的 `fileno()` 同时写入 DTR 和 RTS 信号进行复位；Android 端口没有文件描述符，改为通过一次 CDC `SET_CONTROL_LINE_STATE` 发送两条信号线。
-[桌面构建](gui.md) 涵盖了打包所有四个镜像。
+[桌面构建](gui.md) 涵盖了固件镜像的打包。
+
+### ESP32-S2（Flipper Zero Wi-Fi Developer Board）
+
+S2 没有 USB Serial/JTAG：其固件在 USB OTG 外设上运行 TinyUSB CDC（`espressif/esp_tinyusb` 2.2.0 和 `espressif/tinyusb` 0.21.0~6，固定在 `firmware/esp32/main/idf_component.yml`）。运行中的固件枚举为 `303a:4001`，产品名为 `pokeldn ESP32-S2`；开发板出厂固件 Blackmagic 也共用 `303a:4001`。ROM 下载模式枚举为 `303a:0002`。此构建没有屏幕（`POKELDN_DISPLAY=NONE`），没有蓝牙，也没有 LED；BOOT 为 GPIO0。
+
+| 设置 | 值 | 原因 |
+|---|---|---|
+| `CONFIG_TINYUSB_MODE_SLAVE` | `y` | 该板 S2 rev 0.0 的 Espressif 勘误 USB-105：USB DMA 总线仲裁 |
+| `CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM` | 10 | USB 任务和线路队列所需的内部 RAM |
+| `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ` | 240 | |
+
+关闭 DMA 后，三次空闲无线电 USB 扫描在 3491 条命令和 4287 条回复中未丢失任何帧；以 10 ms 间隔持续 30 秒则承载了 2417 条命令和 5000 条回复且无丢包（`tools/ldn/esp32_usb_duplex.py`）；以 5 ms 间隔时主机侧队列会填满。零售版火红交换（含交换进化）已在 macOS 上完成。
+
+从 `303a:4001` 无法通过固件发起复位进入 ROM 加载器。请手动进入下载模式：从 Flipper 上拔下开发板，按住 BOOT，按下并松开 RESET，再松开 BOOT。桌面应用随后会将 `303a:0002` 端口识别为处于下载模式的 ESP32-S2，并以 `no-reset` 刷写。写入完成后，在松开 BOOT 的状态下按 RESET。
+
+首次安装前，请在下载模式下备份出厂的 4 MB flash；该镜像保存着开发板的设置。
+
+    python -m esptool --chip esp32s2 --port PORT --before no-reset --after no-reset \
+        read-flash 0x0 0x400000 flipper-original.bin
+    python -m esptool --chip esp32s2 --port PORT --before no-reset --after no-reset \
+        write-flash 0x0 flipper-original.bin
+
+第二行用于恢复。没有备份的开发板可通过 [Flipper 固件更新指南](https://developer.flipper.net/flipperzero/doxygen/dev_board_fw_update.html) 重新装回 Blackmagic。
+`tools/ldn/esp32_first_contact.py --port PORT` 会在运行中的固件上检查 HELLO。
 
 ### stub 刷写器无法启动的板子
 
@@ -498,7 +523,7 @@ BLE 构建采用 BLE 专用控制器、10 个静态 Wi-Fi RX 缓冲区和 10 KB 
 
 ### USB 主机链接
 
-S3、C3 和 C6 使用相同的 COBS、CRC 和 CREDIT 协议，通过 USB Serial/JTAG 与 16 KB 环形缓冲区通信。写入器每 20 ms 重试一次被拒绝的 `usb_serial_jtag_write_bytes`，并在 500 ms 后计数丢弃的消息。接收中断在 RX 环满时丢弃一个 64 字节的数据包且不计数（`usb_serial_jtag.c:144`）；CREDIT 防止环形缓冲区溢满。在此路径上 UART 计数器保持为零，`POKELDN_ESP32_BAUD` 仅改变经典 ESP32 的速率。在 USB 目标上，读取器优先级为 21，高于写入器（20）：低于它，写入器会在满速数据流下饿死读取器。
+S3、C3 和 C6 使用相同的 COBS、CRC 和 CREDIT 协议，通过 USB Serial/JTAG 与 16 KB 环形缓冲区通信；S2 则通过 TinyUSB CDC，并且只写入其 TX FIFO 尚有空间的数据。写入器每 20 ms 重试一次被拒绝的 `usb_serial_jtag_write_bytes`，并在 500 ms 后计数丢弃的消息。接收中断在 RX 环满时丢弃一个 64 字节的数据包且不计数（`usb_serial_jtag.c:144`）；CREDIT 防止环形缓冲区溢满。在此路径上 UART 计数器保持为零，`POKELDN_ESP32_BAUD` 仅改变经典 ESP32 的速率。在 USB 目标上，读取器优先级为 21，高于写入器（20）：低于它，写入器会在满速数据流下饿死读取器。
 
 主机设置 1 秒写入超时；一次失败或短写入会以板子丢失结束会话。在 HELLO 之后，1 秒内无有效帧会触发 STATUS 探测，3 秒静默会以 USB 错误结束会话，提示用户重新插入板子。
 

@@ -4,7 +4,7 @@ title: Desktop builds
 
 # 桌面版构建
 
-桌面应用是 pokeldn 在 macOS、Windows 和 Linux 上的界面。一次发布会打包 PKHeX 和适用于 ESP32、ESP32-S3、ESP32-C3 和 ESP32-C6 的无线固件；用户需提供 `prod.keys`。
+桌面应用是 pokeldn 在 macOS、Windows 和 Linux 上的界面。一次发布会打包 PKHeX 和适用于 ESP32、ESP32-S2、ESP32-S3、ESP32-C3 和 ESP32-C6 的无线固件。用户需提供 `prod.keys`。
 
 1. 设置：选择 `prod.keys`。
 2. 主板页面：选择 USB 主板并安装无线固件。安装时会选择芯片自带的镜像；来自文件的镜像会与芯片校验。S3、C3 和 C6 通过原生 USB 串口/JTAG 连接；S2 芯片会被拒绝。
@@ -517,6 +517,7 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 | 更新或插件更新检查会用整页更新重绘侧栏 | 它只更新侧栏本身 |
 | 工具字段的 `on_change` 每按一键就触发一次 | 值会立即存储；设置保存和会话面板重绘在最后一次按键的 0.25 秒后运行（`GamesView.settle`） |
 | Flet 每 10 ms 采样一次滚动和尺寸事件，每次都是发往 Python 的消息 | 带淡出的列表每 100 ms 采样一次 |
+| 宝可梦的「更多选项」会向 PKHeX 查询其合法特性、球种和遭遇（朱／紫和剑／盾在 M4 上需 0.6 到 0.9 秒），并一次绘制四个各 700 行的招式框：单次补丁 2,700 个控件 | 选择种类时会在面板关闭期间预先读取这些数据；不少于 100 行的可搜索下拉框（`t.LAZY_FROM`）先只绘制当前值，窗体显示后再由 `t.fill` 按每个框一次补丁发送完整列表。「更多选项」一次只增加 145 个控件。若列表在输入框首次获得焦点时才到达，会重建该字段并丢掉已键入的内容 |
 | 控制器开发板的轮询在应用整个生命周期内每 6 秒运行一次 | Windows 在进程内询问 cfgmgr32（`board.present_usb_ids`）；PowerShell CIM 查询是回退方案 |
 
 `tools/gui_patch_profile.py LOG` 会运行界面，并记录每次补丁的耗时、控件数量以及每个事件。
@@ -596,7 +597,7 @@ Raspberry Pi OS 添加 piwheels 作为包索引，piwheels 的 `flet_web-1.0.2-p
 mkdir -p gui/firmware
 OUT="$PWD/gui/firmware"
 cd firmware/esp32
-for t in esp32:radio esp32s3:radio-s3 esp32c3:radio-c3 esp32c6:radio-c6; do
+for t in esp32:radio esp32s2:radio-s2 esp32s3:radio-s3 esp32c3:radio-c3 esp32c6:radio-c6; do
   chip=${t%%:*}; name=${t#*:}
   idf.py -B build/$chip -D SDKCONFIG="$PWD/build/$chip/sdkconfig" set-target $chip
   idf.py -B build/$chip -D SDKCONFIG="$PWD/build/$chip/sdkconfig" build
@@ -618,9 +619,12 @@ for t in esp32:E32R40T esp32s3:SZPI; do   # the colour screen boards (hardware_e
   idf.py -B build/$name merge-bin -o "$OUT/pokeldn-radio-$name.bin"
 done
 cd ../pad
-idf.py -B build -D SDKCONFIG="$PWD/build/sdkconfig" set-target esp32s3
-idf.py -B build -D SDKCONFIG="$PWD/build/sdkconfig" build
-idf.py -B build merge-bin -o "$OUT/pokeldn-pad-s3.bin"
+for t in esp32:pad esp32s3:pad-s3; do
+  chip=${t%%:*}; name=${t#*:}
+  idf.py -B build/$chip -D SDKCONFIG="$PWD/build/$chip/sdkconfig" set-target $chip
+  idf.py -B build/$chip -D SDKCONFIG="$PWD/build/$chip/sdkconfig" build
+  idf.py -B build/$chip merge-bin -o "$OUT/pokeldn-$name.bin"
+done
 cd ../..
 python scripts/build_client.py
 python scripts/build_unicorn.py   # 需要 CMake
