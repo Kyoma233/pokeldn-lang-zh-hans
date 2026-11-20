@@ -652,6 +652,7 @@ python scripts/pack_app.py
 - 永远不要修剪可执行文件或 PKHeX 助手：两者在 Mach-O 图像之后都携带一个存档。
 - `scripts/pack_flet.py` 保留查看器的权限；如果没有 `com.apple.security.files.user-selected.read-write`，选择 `prod.keys` 会引发 `ENTITLEMENT_NOT_FOUND`。
 - 在 Linux 上，`pokeldn/app/paths.py` 恢复用户的 `LD_LIBRARY_PATH`（捆绑的 `libstdc++` 会破坏 Fedora 的 EGL），并设置 `FLET_LINUX_DISTRO`。
+- 在带有 XWayland 的 Wayland 会话中（已设置 `DISPLAY`），`paths.py` 会设置 `GDK_BACKEND=x11`（除非用户已设置）：在某些驱动下，查看器在 Wayland 下会记录 `Failed to create OpenGL context` 并显示黑色空白窗口。`GDK_BACKEND=wayland` 可覆盖此设置。
 - Unicorn 在 Control Flow Guard 下会中止，错误代码为 `0xC0000409`
 （[unicorn#2281](https://github.com/unicorn-engine/unicorn/issues/2281)）；打包器清除 `pokeldn.exe` 中的 `GUARD_CF`（`0xC160` 到 `0x8160`）。永远不要在冻结检查中启用 `faulthandler`。
 - 在 Windows 上，`pokeldn.exe` 属于 GUI 子系统（subsystem 2），不会打开控制台窗口。每次运行、烧录和辅助进程都用管道启动 `pokeldn.exe` 本身，这样日志能回到应用，关闭的 stdin 可以终止它。从任一者启动的控制台程序都会自己打开一个窗口，除非传入 `CREATE_NO_WINDOW`：使用 `**NO_WINDOW`（`pokeldn/windowless.py`）；`tests/test_windowless.py` 会检查 `bin/`、`pokeldn/` 和 `gui/` 中的每一次启动。
