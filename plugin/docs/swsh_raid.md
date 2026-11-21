@@ -60,7 +60,7 @@ PlayerInfo 使用 4 KB 窗口的 zlib 压缩（标头 `48 4b`），可靠标志 
 
 服务器是每个控制台保留的 ServerVersion 记录获胜的站点。ServerVersion 是 `btl.net.protocol_buffers.BtlDataHolder`（id 10000）字段 3：站点 ID u64、客户端 ID u32、版本 u32（版本 `0x6e`）。八个 {站点、客户端 ID、版本、有效} 槽位位于战斗网络对象 `+0x190 + 16 * i`；`0x8b4030` 选择第一个有效槽位中版本最高的，`0x8b1990`（IsServer）比较其客户端 ID 与控制台自身。控制台的客户端 ID 是其在 BattleStart 中的位置（`0x1025120`）。提供服务的站点将槽位发布为 40000 框架对象 0 至 7。
 
-在 26 场团体战中的 9 场，作为主机的零售版剑会在发送自己的 ServerVersion 之前，自行发布对象 0，其中保存着我们的 `0x6d` 记录；其中 8 场它发送了 EmptyCommand，从未发布对象 8，并停留在黑屏上（音乐仍在播放）。我们的 ServerVersion 经端口 0 发出，与端口 1 上的对象处于同一次突发中，但是两条独立的流。端口 0 先到达，因此控制台表中只有我们这一条记录——这一点是推断出来的，并非实测。主机只有在每台控制台都已发送自己的 ServerVersion，或已镜像基准-20000 身体 `00000100`（该身体跟在端口 1 的对象之后）之后，才会发送自己的 ServerVersion。
+零售版剑会把 ServerVersion 消息写入发送方 Pia 站点索引对应的槽位，因此会话主机的记录落在槽位 0，框架对象 k 落在槽位 k；后写入的会覆盖先前的。若把控制台的记录发布为对象 0，我们的 ServerVersion 就会覆盖它：在主持的 20 场团体战中，控制台随后都把我们的 `0x6d` 记录发布为对象 0，发送了 EmptyCommand，从未发布对象 8，并停留在黑屏上（音乐仍在播放）。主机把自己的记录发布为对象 0，把第 k 台控制台的记录发布为对象 k + 1，也就是 ServerVersion 消息填入的那些槽位，因此两个端口谁先到达已不再重要。
 
 ### 动作
 
@@ -141,7 +141,7 @@ den 主机的 BossPokemon 是某一种子的团体战掷点结果 [PKHeX RaidRNG
 |---|---|
 | BattleStart | lists the console first, so the console's client id is 0 |
 | 0x7C port 0 | sends ping; answers the console's ping and pingSynced |
-| framework objects | publishes object 0 = the console's ServerVersion record, object 1 = its own |
+| framework objects | publishes object 0 = its own ServerVersion record, object 1 = the console's |
 | 0x7C port 0 | sends its own ServerVersion (client id 1) |
 | base 20000 | publishes the counter and its own body, 0000 / 00000100, then 0100 / 01000100, 01000200, 0200 / 02000200, each once the console mirrors the last body |
 | object 8 | the console publish it (24 bytes, a seed); the host answers EmptyCommand (10000 field 1) |
@@ -153,7 +153,7 @@ den 主机的 BossPokemon 是某一种子的团体战掷点结果 [PKHeX RaidRNG
 
 ### Several consoles
 
-最多三台控制台共享一个主持的房间 (`raid_host.RaidParty`)。主机在所有加入的控制台准备就绪后开始战斗；BattleStart 按加入顺序列出控制台，然后是主机。第一台控制台承担战斗。主机发布 framework object k 作为第 k 台控制台的 ServerVersion 记录及其自己的最后一条记录，并在每台控制台镜像其 body 后推进 base-20000 屏障。
+最多三台控制台共享一个主持的房间 (`raid_host.RaidParty`)。主机在所有加入的控制台准备就绪后开始战斗；BattleStart 按加入顺序列出控制台，然后是主机。第一台控制台承担战斗。主机把自己的 ServerVersion 记录发布为 framework object 0，把第 k 台控制台的记录发布为 object k + 1，并在每台控制台镜像其 body 后推进 base-20000 屏障。
 
 第二台控制台需要从 Pia 主机处获取：发送给它的 session 更新（在 loopback 上每个站点都有自己的副本）；mesh 加入响应字节 8，active station 最大值，超过已坐下的站点（否则返回结果 1 和错误 2618-0502）；以及发送者 stream 端口上的 ack（主机为 0，第一位加入者为 1，第二位为 2），因为未被确认的 stream 会无休止重复。
 
