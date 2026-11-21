@@ -1,6 +1,6 @@
 # sha256 of the English docs/*.md last translated into plugin/docs
-"gui.md" = "0cbfc87da3cc194cacc4fc223261c0668983029b268e558d15c048e5730dd80a"
-"hardware_esp32.md" = "037b4dc57039f77dfc7671ade88ac8cddf7e2a062f593ac0dbd8dc1c95f56101"
+"gui.md" = "9da149c6abec22d0a2b1c597233a21a6bd5b5010beb2c69e914cd985304c18fd"
+"hardware_esp32.md" = "3eb983a23af3f80f7f9d4b265aeb091d14872e64ee7f7078ccd71ba1aa4d7435"
 "lgpe_session.md" = "d3fb85f6a6f093c7413c8573fd18356ac8c083a7133569e91cc5b85d3da3f5c9"
 "swsh_protocol.md" = "4c31ed13c933f78cdec257829b00a2059384b10b0bf949b9db4bca9d251fe497"
-"swsh_raid.md" = "0f2fe706611c63e2a12db351704ab9c407cea5ab5ef46e6d4a828d00f2ed2ab0"
+"swsh_raid.md" = "e0c3dcde78d1d0c58c5c9fd8c1f44d877ff47216d2ab36300ef25b9c7bff4d7b"

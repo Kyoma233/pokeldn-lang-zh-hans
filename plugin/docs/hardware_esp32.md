@@ -14,12 +14,12 @@ nav_order: 1
 |---|---|---|
 | 经典 ESP32（ESP32-D0WD，WROOM-32E） | 通过 USB 串口桥接的 UART0 | `pokeldn-radio.bin` |
 | ESP32-S2（Flipper Zero Wi-Fi Developer Board） | 原生 USB CDC（TinyUSB） | `pokeldn-radio-s2.bin` |
-| ESP32-S3 | 原生 USB 串口/JTAG | `pokeldn-radio-s3.bin` |
-| ESP32-C3 | 原生 USB 串口/JTAG | `pokeldn-radio-c3.bin` |
-| ESP32-C6 | 原生 USB 串口/JTAG | `pokeldn-radio-c6.bin` |
+| ESP32-S3 | 原生 USB 串口/JTAG，或通过 USB 串口桥接的 UART0 | `pokeldn-radio-s3.bin` |
+| ESP32-C3 | 原生 USB 串口/JTAG，或通过 USB 串口桥接的 UART0 | `pokeldn-radio-c3.bin` |
+| ESP32-C6 | 原生 USB 串口/JTAG，或通过 USB 串口桥接的 UART0 | `pokeldn-radio-c6.bin` |
 | 经典 ESP32，ESP32-C6 | 蓝牙 LE（iOS 应用），以及如上 USB | `pokeldn-radio-ble.bin`，`pokeldn-radio-ble-c6.bin` |
 
-所有目标均使用 2.4 GHz 频段；S2 见[下文](#the-esp32-s2-flipper-zero-wi-fi-developer-board)。具有独立 UART 和原生 USB 接口的 S2、S3、C3 或 C6 板子必须使用原生接口（S3 GPIO19/20，C3 GPIO18/19）；通过 UART 接口时固件不会响应。当通过 USB 串口桥接没有固件响应时，桌面应用会从 ROM 引导加载器读取芯片信息（esptool `detect_chip`），并将 S2、S3、C3 或 C6 识别为插入了错误的接口。`303a:1001` 被多个芯片共享；刷写时通过 esptool 检测芯片。
+所有目标均使用 2.4 GHz 频段；S2 见[下文](#the-esp32-s2-flipper-zero-wi-fi-developer-board)。从固件 1.12.0 起，具有独立 UART 和原生 USB 接口的 S3、C3 或 C6 在任一接口上都会响应：固件同时监听 USB 串口/JTAG 和 UART0（`U0TXD_GPIO_NUM`/`U0RXD_GPIO_NUM`），并在最近收到有效帧的那个接口上回复，因此未供电的桥接芯片产生的噪声不会把回复引走。S2 必须使用其原生接口。当通过 USB 串口桥接没有固件响应时，桌面应用会从 ROM 引导加载器读取芯片信息（esptool `detect_chip`），并将 S2 识别为插入了错误的接口。`303a:1001` 被多个芯片共享；刷写时通过 esptool 检测芯片。
 
 | 板子 | 天线 | BOOT | 用户 LED | CPU，任务核心 | 空闲可用堆 | BENCH 通过原生 USB，macOS |
 |---|---|---|---|---|---|---|

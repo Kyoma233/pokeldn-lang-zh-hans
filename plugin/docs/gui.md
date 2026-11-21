@@ -533,7 +533,7 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 
 启动时，应用会询问 `api.github.com/repos/Decryptu/pokeldn/releases/latest`（5 秒超时）。如果 `vX.Y.Z` 标签高于 `pokeldn.__version__`，则会添加一个更新条目，提供立即更新或下载。
 
-立即更新（`pokeldn.app.update`）会下载平台存档和 `SHA256SUMS` 到 `update/`，拒绝校验和不匹配，解压缩（`ditto -x -k`，`tarfile` `data` 过滤器，`zipfile`），并启动 `pokeldn --apply-update NEW TARGET PID VERSION`（`gui/updating.py`）。助手等待旧应用退出（在 Windows 上等待其进程），将其重命名为 `.<name>.old`，复制新应用并打开它；任何失败都会恢复旧应用。新应用会读取 `update/outcome.json` 一次。校验和可以检测损坏，但不能验证发布。
+立即更新（`pokeldn.app.update`）会下载平台存档和 `SHA256SUMS` 到 `update/`，拒绝校验和不匹配，解压缩（`ditto -x -k`，`tarfile` `data` 过滤器，`zipfile`），并启动 `pokeldn --apply-update NEW TARGET PID VERSION`（`gui/updating.py`）。助手等待旧应用退出（在 Windows 上等待其进程），将打包应用自带的条目（`pokeldn.exe`、`_internal`、`Contents`，以及新存档的每一个顶层名称）移到该文件夹旁边的 `.<name>.old`，再把新条目复制进去并打开；文件夹中的其他条目保持原位，任何失败都会恢复旧应用。新应用会读取 `update/outcome.json` 一次。校验和可以检测损坏，但不能验证发布。
 
 | 情况 | 行为 |
 |---|---|
@@ -544,6 +544,7 @@ ESP32-S3 插入 Switch 并通过蓝牙低功耗连接；经典 ESP32 留在电�
 | Windows，`C:\Program Files` | 立即更新在 UAC 后面（`ShellExecuteExW` `runas`） |
 | Windows，另一个驱动器的根（`D:\pokeldn`） | 立即更新无 UAC：交换仅在应用旁边添加文件夹，这允许用户在卷的根下操作。0.34.0 之前的版本会用文件探测根，在那里请求 UAC，标准用户的更新会在“Windows 没有给予 pokeldn 更改 D:\ 的权限”时停止；从此类版本中，下一版本需要手动下载一次 |
 | Windows，映射或 `subst` 驱动器 | 保留驱动器号；助手在两种拼写下找到旧应用的进程；在 UAC 后面，助手获取字母所代表的文件夹，因为在用户会话中映射的字母在提升的进程中是看不见的 |
+| 应用文件夹中含有打包应用并不自带的条目（exe 旁边保留的 `Received` 或 `Bank` 文件夹，桌面上散放的 `pokeldn.exe` 和 `_internal`） | 立即更新；只替换应用自身的条目。到 0.66.8 为止的版本在此处仅提供下载；从这类版本升级到下一版本时，需要手动下载一次 |
 | 一个会话、闪存或清理正在运行 | 要求先完成 |
 
 `scripts/check_update.py ARCHIVE FOLDER` 测试打包应用的更新是否与 127.0.0.1 兼容；
