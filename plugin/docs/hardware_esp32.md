@@ -502,7 +502,7 @@ S2 没有 USB Serial/JTAG：其固件在 USB OTG 外设上运行 TinyUSB CDC（`
 
 ### stub 刷写器无法启动的板子
 
-部分经典 ESP32 板子能响应 ROM 加载器，却永远无法启动 esptool 的 stub（`Failed to start stub flasher`）；曾有一块这样的板子把 eFuse 块 0 读成全零（`MAC: 00:00:00:00:00:00`，修订版本 v0.0）。其 ROM 还会丢掉改到 460800 的波特率切换，并在部分写入中途停止。遇到该错误时，`gui.board.flash` 会重新连接，并以连接时的波特率加上 `--no-stub` 写入，最多 `ROM_ATTEMPTS`（4）次连接：一份 777 KB 镜像大约需要 80 秒。任何其他失败都会结束安装。
+部分经典 ESP32 板子能响应 ROM 加载器，却永远无法启动 esptool 的 stub（`Failed to start stub flasher`）；曾有一块这样的板子把 eFuse 块 0 读成全零（`MAC: 00:00:00:00:00:00`，修订版本 v0.0）。其 ROM 还会丢掉改到 460800 的波特率切换，并在部分写入中途停止。遇到该错误时，`gui.board.flash` 会重新连接，并以连接时的波特率加上 `--no-stub --compress` 写入，最多 `ROM_ATTEMPTS`（4）次连接，每次间隔一秒。写入中断，以及紧接着出现的端口打开被拒绝（Windows 上为 `Access is denied`），都会改走下一次连接。一块经典 ESP32（CP210x）曾用这种方式把 962,288 字节的蓝牙镜像写成 615,996 字节的压缩数据；不压缩时，同一块开发板在 33.7% 处停止。任何其他失败都会结束安装。
 
 ### 蓝牙
 

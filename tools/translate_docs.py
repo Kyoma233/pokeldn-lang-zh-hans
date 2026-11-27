@@ -157,7 +157,10 @@ def chat(messages: list[dict], temperature: float = 0.2, retries: int = 5) -> st
         try:
             with urllib.request.urlopen(req, timeout=600) as r:
                 data = json.load(r)
-            return data["choices"][0]["message"]["content"]
+            content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+            if not content or not str(content).strip():
+                raise RuntimeError(f"empty model content: {json.dumps(data)[:500]}")
+            return content
         except urllib.error.HTTPError as e:
             err = e.read().decode("utf-8", "replace")
             if e.code in (429, 500, 502, 503) and attempt < retries - 1:

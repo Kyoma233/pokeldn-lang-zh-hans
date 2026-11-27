@@ -1,6 +1,11 @@
 # sha256 of the English docs/*.md last translated into plugin/docs
-"gui.md" = "9da149c6abec22d0a2b1c597233a21a6bd5b5010beb2c69e914cd985304c18fd"
-"hardware_esp32.md" = "3eb983a23af3f80f7f9d4b265aeb091d14872e64ee7f7078ccd71ba1aa4d7435"
+"architecture.md" = "b31aa9e2f983f86b442f40d29027c070d3955ca97dcd1cac577c074b90b0b726"
+"frlg_gift.md" = "efcb7179df0524c59c3845f3e2474b5f78b665a368d2e329d712b8b134773f63"
+"gift_simulated.md" = "fc2e8e0c3a3419b429ca8372a6aca623e4beec57c7c14f9401fc18373269bb5a"
+"gui.md" = "1582ef0feab9ce6d77e35d42f1b0b406b5e7fb8a6eb556465adbb0f4d5233319"
+"hardware_esp32.md" = "cf466c15604c4c5a7eb3629825eed9553c0ce645dd4d5d2431ff6cb75bbc1548"
 "lgpe_session.md" = "d3fb85f6a6f093c7413c8573fd18356ac8c083a7133569e91cc5b85d3da3f5c9"
+"rse_gift.md" = "9e0280e35421eb79bd932542c8df23f821d7797c7fb1b601607be50889fd5f68"
 "swsh_protocol.md" = "4c31ed13c933f78cdec257829b00a2059384b10b0bf949b9db4bca9d251fe497"
 "swsh_raid.md" = "34f7ae76f8d45bff57e276f9f429077f7fb533e5e086b9483e902ace6c6c32fd"
+"swsh_trade.md" = "e6a0aa4f8c5652ef67a700b7872e70c2744b3053d134716bf31e6ed5af17c233"

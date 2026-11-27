@@ -6,279 +6,297 @@ nav_order: 3
 
 # 连接交换
 
-剑盾的连接交换，从快照交换到存档。帧构建、内容注册和 PK8 参见[同步框架](swsh_protocol.md)。
+剑／盾的连接交换，从快照交换到存档写入。帧结构、内容注册与 PK8 详见 [同步框架](swsh_protocol.md)。
 
-## 序列
+## 交换序列
 
-    1  主机在协议 0x84，端口 0 上广播其 3456 字节快照
-    2  客户端确认分片（0x21）和传输（0x19 / 0x28）
-    3  客户端在 0x84 端口 1 上发送自己的快照并报告完成
-    4  交换画面开启
-    5  主机在 0x7C 端口 1 上每秒多次发送 40030 RPC 对
-    6  客户端应答该对并在 20030 上发送 `imReady`
-    7  主机在 20030 上提供一只宝可梦；客户端在 10050 上提供一只
-    8  玩家接受（盒子命令 4）
-    9  在内容 40 上进行确认阶梯
-    10 主机写入其存档
+    1  主机在协议 0x84、端口 0 广播其 3456 字节快照
+    2  客户端确认片段 (0x21) 与传输 (0x19 / 0x28)
+    3  客户端在 0x84 端口 1 发送自己的快照并报告完成
+    4  交换画面打开
+    5  主机在 0x7C 端口 1 每秒多次发送 40030 RPC 对
+    6  客户端应答该对并在 20030 发送 `imReady`
+    7  主机在 20030 提供宝可梦；客户端在 10050 提供宝可梦
+    8  玩家确认（盒子命令 4）
+    9  内容 40 上运行确认阶梯
+    10 主机写入存档
 
-作为主机的主机不确认加入方在端口 0 上发送的快照；加入方的快照在端口 1 上。在其 0x84 得到应答之前，该主机不发送其他内容，并无限重传。`pokeldn/ldn/broadcast4.py` 实现了全部四种。
+主机不确认加入者在端口 0 发送的快照；加入者的快照走端口 1。在其 0x84 得到应答前，主机不发送任何其他内容并无限重传。`pokeldn/ldn/broadcast4.py` 实现了全部四种情况。
 
 ## 交换 RPC
 
-ping、分块消息和提供使用端口 0，40030 对使用端口 1；在错误端口上的应答不会被读取。
+心跳、区块消息与提供使用端口 0，40030 对使用端口 1；错误端口上的应答不被读取。
 
     id 40030 = 40000 + 30
       1  offset      30
-      2  base        10000，另一成员中为 20000
-      3  station id  发送方的，等于席位记录的 host_constant
-      4  clock       在消息之间递增的计数器
+      2  base        10000，另一成员为 20000
+      3  station id  发送者的，等于座位记录的 host_constant
+      4  clock       消息间递增的计数器
       5  bytes(4)    10000 成员为 00000000，20000 成员为 000018fc
 
-`000018fc` 是哨兵 `0xfc18`（[步骤体](#the-step-body)）。`3e4e000012020801` 是承载 `imReady{isReady:true}` 的 20030；由加入客户端发送。这些消息可以根据解析字段逐字节重建（`pokeldn/swsh/trade.py`）。
+`000018fc` 是哨兵 `0xfc18`（[步骤主体](#the-step-body)）。`3e4e000012020801` 是携带 `imReady{isReady:true}` 的 20030；加入客户端发送它。消息从解析字段逐字节重建（`pokeldn/swsh/trade.py`）。
 
-- 每个应答只发送一次（`--answer-once`）；在定时器上重新推导应答会重新发送提供。
-- 读取器在不是交换消息的消息上返回 `None`。一个可靠窗口（`44 00 01`，[主机迁移](#host-migration)）上的网状消息若引发异常，会结束接收任务和交换。
+- 每个应答仅发送一次 (`--answer-once`)；定时器上重新派生应答会重发提供。
+- 读取器对非交换消息返回 `None`。可靠窗口上的网格消息 (`44 00 01`，[主机迁移](#host-migration)) 抛出异常将结束接收任务与交换。
 
 ## 主机迁移
 
-离会的《剑》主机会在协议 0x18 端口 1 上请求主机迁移（`nn::pia::mesh::LeaveWithHostMigrationJob`）：可靠头 `0f 00 00 03 00 01 00 01`，然后是网状消息 `44 00 01`，MIGRATION_START `[0x44, host index 0, new host index 1]`。被指定的客户端必须在网状端口 1 的可靠窗口上广播 `MIGRATION_FINISH`（[Pia 层](pia.md#host-migration)）。`--answer-migration --update-mesh` 会发送完成，并在新主机索引下发布网状更新。交接后保留会话尚未经过验证。
+离开会话的主机剑请求主机迁移，使用协议 0x18 端口 1 (`nn::pia::mesh::LeaveWithHostMigrationJob`)：可靠头 `0f 00 00 03 00 01 00 01` 随后是网格消息 `44 00 01`，MIGRATION_START `[0x44, host index 0, new host index 1]`。被指名的客户端必须在网格端口 1 的可靠窗口广播 `MIGRATION_FINISH`（[Pia 层](pia.md#host-migration)）。`--answer-migration --update-mesh` 发送 finish 并在新主机索引下发布网格更新。迁移后保留会话未经验证。
 
-一部零售《剑》主机会在两种情况下发送一次 MIGRATION_START：
+主机零售剑在两种情况下各发送一次 MIGRATION_START：
 
-| 时间 | 条件 |
+| 时机 | 条件 |
 |---|---|
-| 其盒子命令 3 后 0.8 秒 | 一场已完成的交换之后 |
-| 玩家接受后的几秒钟，在主机以 `2-ALZAA-0016` 拆除之前 | 在阶梯之前失败的交换，加入方未发送确认命令 |
+| 其盒子命令 3 后 0.8 s | 已完成的交换后 |
+| 玩家确认后数秒，主机在 `2-ALZAA-0016` 中拆解前 | 阶梯前失败的交换，加入者未发送确认命令 |
 
-`bin/swsh_host.py --migrate` 会以盒子命令 3 和 MIGRATION_START 结束其主持的交换。默认情况下主机会保留会话。
+`bin/swsh_host.py --migrate` 以盒子命令 3 和 MIGRATION_START 结束其主持的交换。默认主机保留会话。
 
-## 主持一场交换
+## 主持交换
 
-`bin/swsh_host.py` 负责主持，`pokeldn/swsh/host_trade.py` 则像作为主机的《剑》一样进行引导。一部零售法文版《剑》1.3.2 和一部模拟的《盾》1.3.2 各自加入并交换。
+`bin/swsh_host.py` 主持，`pokeldn/swsh/host_trade.py` 按主机剑的方式引导。零售法版剑 1.3.2 与模拟盾 1.3.2 均可加入并交换。
 
-主机会使用新的网络 id、设备 id 和账户 uid 构建站点通告。在 0x84 上，它确认加入方的三个快照分片，用其训练家身份和 `--offer-file` PK8 重写该实时快照，然后在端口 0 上发送结果。主机提供的 PK8 会被写入 `--received`。`--advert FILE` 和 `--snapshot FILE` 则改用已保存的记录。
+主机用全新的 network id、device id 与 account uid 构建站点广播。在 0x84 上确认加入者的三个快照片段，用其训练家身份与 `--offer-file` PK8 重写该实时快照，然后在端口 0 发送结果。主机提供的 PK8 写入 `--received`。`--advert FILE` 与 `--snapshot FILE` 使用保存的记录。
 
-站点握手双向得到确认，主机的请求在 [0x10] 处携带加入方的随机字节；未确认时，加入方会重复其请求。主机应答加入方的 Sync Clock（0x1C，每两秒一次）和 Clone Clock（0x77）。
+站点握手双向确认，主机请求携带加入者的随机字节（位于 [0x10]）；未确认时加入者重复请求。主机应答加入者的 Sync Clock (0x1C，每两秒) 与 Clone Clock (0x77)。
 
-在双向 [ping 握手](swsh_session.md) 之后，应用层：
+应用层在双向 [心跳握手](swsh_session.md) 后：
 
-    0x84  每一方在其站点索引端口上的快照（加入方 1，主机 0），每个都在同一端口上得到确认；
-          零售主机先发送，`host_trade.py` 后发送
-    110   加入方在其交换画面出现后先 ping；主机用自己的 ping 和回复应答
-          （该画面之前的主机 ping 会被确认并丢弃）
-    30    主机打开内容 30；每一方在 20030 上提供并发送盒子命令 1；每次接受都是盒子命令 4
-    130   加入方先 ping
-    50    主机将其宝可梦发布为元素 0，并将加入方的 10050 中继为元素 1
-    120   主机先 ping
-    40    阶梯：主机命令作为元素 0，加入方的 10040 作为元素 1，阶段 0 到 4
+    0x84  双方快照各自在其站点索引端口上（加入者 1，主机 0），各在同端口确认；零售主机先发，`host_trade.py` 后发
+    110   加入者在交换画面就绪后先心跳一次；主机以自己的心跳与回复应答（画面前的主机心跳被确认并丢弃）
+    30    主机打开内容 30；双方在 20030 提供并发送盒子命令 1；每次确认均为盒子命令 4
+    130   加入者先心跳
+    50    主机将自己的宝可梦作为元素 0 发布，并将加入者的 10050 作为元素 1 中转
+    120   主机先心跳
+    40    阶梯：主机命令为元素 0，加入者的 10040 为元素 1，阶段 0 至 4
 
 ## 交换动画
 
-主机在其最后一个 syncCommand 40（`3`）之后播放交换动画，期间没有任何交换消息。加入 `bin/swsh_host.py` 的一部零售《剑》在那条 syncCommand 之后 1.2 秒开始播放动画，并在约 24 秒时将控制权交给玩家。
+主机在其最后一个 syncCommand 40 (`3`) 后播放交换动画，期间无交换消息。加入 `bin/swsh_host.py` 的零售剑在该 syncCommand 后 1.2 s 开始动画，约 24 s 后将控制权交给玩家。
 
-## 同一会话中的连续交换
+## 同一会话上的连续交换
 
-一个会话可以连续进行多场交换：交换状态 9 会发送事件 7（成功）或 8（失败），写回状态 0，玩家则回到盒子里。内容 30 和 ping 110 在整个会话期间存在（设置 `0x010c9280`）；内容 50 与 ping 130（交换状态 1，`0x010d5440`）以及内容 40 与 ping 120（状态 6，`0x010dabc0`）会为每一场交换重建，每个元素都用新的 SyncPing 铸造。已经达到 synced 的 SyncPing 永远不会被就地重置，因此当一台主机没有内容 50 时发送的 ping 130 不会抵达任何持有者。
+一个会话承载接连的交换：交换状态 9 发送事件 7（成功）或 8（失败），写入状态 0，玩家回到盒子。内容 30 与心跳 110 存续于会话（设置 `0x010c9280`）；内容 50 与心跳 130（交换状态 1，`0x010d5440`）以及内容 40 与心跳 120（状态 6，`0x010dabc0`）在每次交换时重建，每个元素伴随新的 SyncPing 铸造。已达 synced 的 SyncPing 不会原地复位，因此在主机无内容 50 时发送的心跳 130 将无持有者接收。
 
-盒子画面的步骤机（`0x00aa5160`，表 `0x2059218`）读取由监听器 `0x00c8d900` 设置的搭档盒子命令标志。在第 3 步中，当搭档的标志 1（其提供）出现时，它会同时清除标志 1 和 4（`0x00aa5688..0x00aa569c`）；第 7 步等待标志 4（`0x00aa5628`），并且只有第 10 步才会发出动作 6，从而启动交换状态 1。与提供在同一突发中发送的盒子命令 4 会被擦除，主机则在第 7 步中带着“En attente d'une réponse（等待回应）”等待。搭档的 4 必须在主机处理其提供之后到达：`pokeldn.swsh.host_trade` 只有在加入方的 4 之后才发送自己的 4，而加入方启动器会在回应主机的 4 时发送自己的 4。
+盒子画面的步骤机 (`0x00aa5160`，表 `0x2059218`) 读取监听器 `0x00c8d900` 设置的伙伴盒子命令标志。步骤 3 中，遇伙伴标志 1（其提供），清除标志 1 与 4 (`0x00aa5688..0x00aa569c`)；步骤 7 等待标志 4 (`0x00aa5628`)，仅步骤 10 发出动作 6，启动交换状态 1。与提供同一突发发送的盒子命令 4 被擦除，主机停留在步骤 7 显示 "En attente d'une réponse"。伙伴的 4 必须在主机处理完其提供后到达：`pokeldn.swsh.host_trade` 在加入者的 4 之后才发送自己的 4，加入者启动器在应答主机时发送其 4。
 
-第 7 步只有在玩家按下 B 键（没有计时器）时才会结束：按下会清除搭档的标志，发送盒子命令 5（接受被撤回）并离开序列（`0x00aa57d0`）；在第 3 步中它会发送盒子命令 2。在那条盒子命令 5 之前发送的搭档提供和盒子命令 1 会与其标志一起被清除，因此 `pokeldn.swsh.host_trade` 和 `bin/swsh_connect.py` 会在盒子命令 5 之后重新发送它们的提供和盒子命令 1。如果没有第二次发送，主机就会停留在“En attente d'une réponse（等待回应）”上。
+步骤 7 仅在玩家按 B 结束（无计时器）：按下清除伙伴标志，发送盒子命令 5（撤回确认）并离开序列 (`0x00aa57d0`)；步骤 3 中发送盒子命令 2。在该盒子命令 5 前发送的伙伴提供与盒子命令 1 随其标志一同清除，因此 `pokeldn.swsh.host_trade` 与 `bin/swsh_connect.py` 在盒子命令 5 后再次发送提供与盒子命令 1。缺少第二次发送会导致主机停留在 "En attente d'une réponse"。
 
-之后的每一场交换都会重复交换自身的部分：双方提供和盒子命令 1，按该顺序的两个盒子命令 4，ping 130（加入方先 ping），处于阶段 0 的新内容 50，ping 120，从阶段 0 到 4 的新内容 40。两场交换之间不会有 0x84 快照、ping 97 或 110、盒子命令 3 或内容 30 发布。`bin/swsh_host.py` 和 `bin/swsh_connect.py` 使用重复的 `--offer-file`，在同一个会话上分别与一部零售《剑》加入方和主机，每场交换各处理一条排队记录；当对方离开时，主机关闭。
+此后每次交换重复交换自身部分：双方提供与盒子命令 1，两个盒子命令 4 依序，心跳 130（加入者先心跳），新内容 50 从阶段 0 开始，心跳 120，新内容 40 从阶段 0 至 4。交换间无 0x84 快照、心跳 97 或 110、盒子命令 3 或内容 30 发布。`bin/swsh_host.py` 与 `bin/swsh_connect.py` 配合重复的 `--offer-file`，在单会话上分别让零售剑加入者与主机各交换一条排队记录；主机在主机离开时关闭。
 
-`bin/swsh_connect.py` 会在已完成的阶梯（40040 上的阶段 4）之后把主机的提供视为下一场交换，并清除其每场交换的状态；40030 对和 ping 应答会继续沿用。
-`bin/swsh_host.py --accept-first --lead SECONDS` 会扮演主机玩家的操作（先接受，在交换后提供其下一条排队记录）；这两个启动器在模拟板（`tests/test_esp32.py`）上的同一会话中双向各交换两条记录。
+`bin/swsh_connect.py` 在完成的阶梯后（40040 上阶段 4）将主机的提供视为下一次交换并清除其逐交换状态；40030 对与心跳应答延续。`bin/swsh_host.py --accept-first --lead SECONDS` 扮演主机玩家（先确认，交换后提供下一条排队记录）；两启动器在模拟板上单会话双向各交换两条记录（`tests/test_esp32.py`）。
 
-当零售加入方的玩家在盒子里按下 B 键时，该主机会发送盒子命令 2 和 3 以及网状消息 `0401`，并无错误地解除认证；其下一次搜索可以加入同一个托管网络。正在搜索的主机会加入任何通过[匹配规则](swsh_session.md#how-a-searching-sword-finds-a-partner)的网络。
+当零售加入者玩家在盒子中按 B，主机发送盒子命令 2 与 3 及网格 `0401` 并取消认证且无错误；其下一次搜索可加入同一主持网络。搜索中的主机加入任何通过 [匹配规则](swsh_session.md#how-a-searching-sword-finds-a-partner) 的网络。
 
 ## 盒子状态机
 
-内容 30 承载从交换画面到提供的一切。`onBoxSyncStateCommand` `0x010ce180` 会丢弃线上命令 0 以及 7 及以上的命令，并用事件 *N* 通知每个监听器，对应线上命令 *N*（跳转表 `0x2067bec`）。监听器 `0x00c8d900` 会设置 `[owner + 0x218 + code] = 1`；1 表示提供，2 撤回提供；4 确认，5 撤回一个 4。发送器 `0x010cda70(content, command)` 由场景跳转表 `0x00a96d10` 根据其动作 `+0x78` 驱动：
+内容 30 承载从交换画面到提供的一切。`onBoxSyncStateCommand` `0x010ce180` 丢弃线命令 0 与 7 以上，并以事件 *N* 通知每个监听器（跳转表 `0x2067bec`）。监听器 `0x00c8d900` 置 `[owner + 0x218 + code] = 1`；1 提供，2 撤回提供；4 确认，5 撤回 4。发送器 `0x010cda70(content, command)` 由场景跳转表 `0x00a96d10` 在其动作 `+0x78` 上驱动：
 
-    action 1  ->  command 3
-    action 2  ->  the Pokemon (0x010ca430), then command 1
-    action 3  ->  command 2
-    action 4  ->  command 5
-    action 5  ->  command 4
-    action 6  ->  0x010ca640, which stores its Pokemon and sets the trade state to 1
+    动作 1  ->  命令 3
+    动作 2  ->  宝可梦 (0x010ca430)，然后命令 1
+    动作 3  ->  命令 2
+    动作 4  ->  命令 5
+    动作 5  ->  命令 4
+    动作 6  ->  0x010ca640，存储其宝可梦并将交换状态置 1
 
-命令会保存在 `[content+0x48]` 中，直到通道就绪字节 `[content+0x4c]` 被置位；在此期间到达的不同命令会置位错误字节 `[content+0x4d]`，并且不发送任何内容。
+命令保存在 `[content+0x48]` 直到通道就绪字节 `[content+0x4c]` 被置位；期间到达不同命令则置错误字节 `[content+0x4d]` 且不发送。
 
-命令 3 恰好由一侧发送：设置 `0x010c9280` 会设置 `[session+0x419] = 0x00dceea0() & 1`（来自玩家列表），而每帧更新 `0x010c9bb0` 会在该字节清零时发送它。`--box-open` 会在 0x84 确认时发送盒子命令。
+命令 3 仅由一方发送：设置 `0x010c9280` 根据玩家列表令 `[session+0x419] = 0x00dceea0() & 1`，逐帧更新 `0x010c9bb0` 在该字节为 0 时发送。`--box-open` 在 0x84 确认时发送盒子命令。
 
 ## 交换状态机
 
-`[session+0x140]`，范围 1..10，表 `0x2067b68`：1 启动内容 50 并发送其宝可梦（`0x010ca0a0`），2 等待，3 是宝可梦交换（`0x010d54b0`），4 做决定（`0x01109320`），6 安装四个委托并启动内容 40（`0x010ca1ac`），8 释放它（`0x010dac90`），9 是终止状态（`[+0x144]` 置位表示失败；监听器收到事件 8）。盒子回调 `0x010ca800` 在状态非 0 时会丢弃事件。状态 2 在委托 `0x010cc380` 中结束：搭档的宝可梦被写入 `session+0x70`，一个 0x60 字节记录（`0x010f5cc0`）。当内容 50 的初始化 `0x010d4d90` 失败时，调用方会设置 `[session+0x144] = 1`，状态 9：通信中断消息。
+`[session+0x140]`，范围 1..10，表 `0x2067b68`：1 启动内容 50 并发送其宝可梦 (`0x010ca0a0`)，2 等待，3 为宝可梦交换 (`0x010d54b0`)，4 决定 (`0x01109320`)，6 安装四个委托并启动内容 40 (`0x010ca1ac`)，8 释放它 (`0x010dac90`)，9 为终态（`[+0x144]` 置位表示失败；监听器收到事件 8）。盒子回调 `0x010ca800` 在状态非 0 时丢弃事件。状态 2 在委托 `0x010cc380` 结束：伙伴宝可梦进入 `session+0x70`，一条 0x60 字节记录 (`0x010f5cc0`)。当内容 50 的初始化 `0x010d4d90` 失败，调用者置 `[session+0x144] = 1`，状态 9：中断通信消息。
 
 ## 确认阶梯
 
-Content 40 是一道屏障，每条命令对应一级梯级。
+Content 40 是一道屏障，每个命令对应一级阶梯。
 
-### 阶段到状态映射
+### 阶段到状态的映射
 
-状态是 `delegate+0x5c`。机器 `0x010dae70` 将 `state - 1` 分派到表 `0x2067ed0`；状态 2、4、7、9 只能通过 `0x010dbf40` 离开，该函数会忽略大于 4 的 u16，否则索引表 `0x2067f4c`：
+状态位于 `delegate+0x5c`。状态机 `0x010dae70` 将 `state - 1` 分发到表 `0x2067ed0`；
+状态 2、4、7、9 仅通过 `0x010dbf40` 离开，该函数忽略高于 4 的 u16，否则索引表 `0x2067f4c`：
 
     phase 0  -> state 1              -> send(0), announcing 1     0x010db308
     phase 1  -> state 3              -> send(1), announcing 2     0x010db0b0
     phase 2  -> state 5 -> 6 or 8    -> send(2), announcing 3     0x010db0dc / 0x010db104
     phase 3  -> state 10 or 11 -> 12 -> send(3), announcing 4     0x010db16c
-    phase 4  -> state 13 -> 14       -> 0x010db970 tears down, content+0x84 = 0xfc18; no send
+    phase 4  -> state 13 -> 14       -> 0x010db970 拆除，content+0x84 = 0xfc18；不发送
 
-`[delegate+0x58]`（`0x110e620(...) & 1`）是角色：状态 7 立即发送 2，状态 9 在倒计时 `[delegate+0x60]`（一个 2..302 的 xorshift 抽取值）之后发送。初始化将 delegate 安装为 10040 持有者的监听器（`0x010da6d0`），并在 `[content+0x2c0]` 安装其第二接口（`0x010da6bc`）。
+`[delegate+0x58]` (`0x110e620(...) & 1`) 为角色：状态 7 一次性发送 2，状态 9 在倒计时 `[delegate+0x60]` 后发送，该倒计时为 2..302 的 xorshift 随机数。初始化将 delegate 安装为 10040 持有者的监听器 (`0x010da6d0`) 及其在 `[content+0x2c0]` 的第二个接口 (`0x010da6bc`)。
+
+### 交换中的传说宝可梦
+
+状态 1 (`0x010daf3c`) 通过两次物种检查，从 `[delegate+0x48]` 和 `[delegate+0x50]` 处的两只宝可梦重新计算角色：`0x008fc280(species, form)` 和 `0x008fc310(species)`。
+`0x008fc280` 对物种 150、151 和 249 到 251，以及跳转表 `0x02052aec`（382 到 494）和 `0x02052cb0`（643 及以上）中的条目返回真。角色为 0 时，状态 6 转至状态 8，其倒计时会延迟主机的命令 2。
+
+在模拟 盾 1.3.2 主机上测试，`bin/swsh_connect.py` 加入：
+
+| 提出的宝可梦 | 角色字节 | `02000200` 后主机行为 |
+|---|---|---|
+| 水箭龟、皮卡丘 | 1 | 0.6 秒后发送命令 2 和 `02000300` |
+| 勒克猫、赞乃，对方回复一次 | 0 | 53 秒无命令，content 40 处于状态 9 且泵处于状态 3 (`0x010db48c`，其发送 `0x010de080` 未完成)，随后提示 "L'échange de Pokémon n'a pas pu être effectué" |
+| 勒克猫，对方每秒重发一次 | 0 | `02000200` 后 2.4 秒收到 `02000300`；交换完成 |
+
+重发的对携带主机的上一帧时钟加上经过的时间，以每秒 60 帧的速率（捕获中信封时钟的速率）；`--ladder-refresh` 设置周期。主机方向（`bin/swsh_host.py`，主机加入）无需更改即可完成 勒克猫 交换：其主机从自身的帧时钟发布。泵状态 3 中哪个检查读取加入方的时钟尚未确定。
 
 ### 泵
 
-`0x010db3e0` 由内容 40 的 tick 在机器之前运行，是 `[content+0x80]` 上的一个 17 状态机器，带有一个共享尾部。尾部通过 `0x010de310` 提交内容的阶段 `[content+0x17c]`（该函数丢弃挂起的消息体并清空作业队列 `content+0x310`），并在阶段等于已宣告的阶段时调用 delegate 的状态设置器，然后运行排队作业 `0x010ddf40` 和元素更新 `0x006d4b80(content+0xd0)`。
+`0x010db3e0` 在机器之前由 content 40 的 tick 运行，是一个基于 `[content+0x80]` 的 17 状态机，带有共享尾部。尾部通过 `0x010de310` 提交 content 的阶段 `[content+0x17c]`（该函数丢弃待处理的 body 并清空作业队列 `content+0x310`），当阶段等于宣布的阶段时调用 delegate 的状态设置器，随后运行队列作业 `0x010ddf40` 和元素更新 `0x006d4b80(content+0xd0)`。
 
 | 字段 | 含义 |
 |---|---|
 | `+0x84` | 已提交的阶段；构造函数设为 `0xfc18` |
-| `+0x86` | 随最后一条命令宣告的阶段，在所有五个发送点 (`0x010dbab0`) 处为 `data + 1` |
-| `+0x17c` | 阶段，即 `element+0xac` |
+| `+0x86` | 最后一次命令宣布的阶段，所有五个发送点均为 `data + 1` (`0x010dbab0`) |
+| `+0x17c` | 阶段，`element+0xac` |
 
-当阶段达到 `+0x86` 时，梯子攀升。泵状态（表 `0x2067f08`；`[+0x1c0]` 是元素的 `+0xf0` 通道）：
+当阶段达到 `+0x86` 时阶梯上升。泵状态（表 `0x2067f08`；`[+0x1c0]` 为元素的 `+0xf0` 通道）：
 
-    1   element ready -> 2; delegate slot 0 with the phase (command 0, announcing 1)
-    2   a pending body at +0x88 -> 3
-    3   all ready, every pair's low half == phase: send the body -> 4
-    4   0x006d3690 publishes the high half; the master goes to 8, others to 7
-    8   every station has sent a command -> 9
-    9   no resend byte set -> 10
-    10  every high half == announced: the master writes shared value = announced -> 7
-    11  clears every flag (a station left); [+0x374] ? 12 : 2
-    14  the gated commit
+    1   元素就绪 -> 2；delegate slot 0 带阶段（命令 0，宣布 1）
+    2   +0x88 有待处理 body -> 3
+    3   全部就绪，每对的低半字 == 阶段：发送 body -> 4
+    4   0x006d3690 发布高半字；主机去 8，其他去 7
+    8   每个站点都已发送命令 -> 9
+    9   未设置重发字节 -> 10
+    10  每个高半字 == 宣布：主机写共享值 = 宣布 -> 7
+    11  清除所有标志（有站点离开）；[+0x374] ? 12 : 2
+    14  受控提交
 
-状态 8 到 10 仅在主机上运行（`0x018407f0`）；其他站点跟随共享值。内容 40 的注册器在 `[+0x374]` 存储 1：有站点离开时进入 11、12，并结束梯子（`0x010dc720`）。
+状态 8 到 10 仅在主机 (`0x018407f0`) 上运行；其他站点跟随共享值。Content 40 的注册器在 `[+0x374]` 存储 1：站点离开会经 11、12 结束阶梯 (`0x010dc720`)。
 
-### 阶段就是元素的字段
+### 阶段即元素的字段
 
-阶段是 `element+0xac`（`0xd0 + 0xac = 0x17c`）：注册器用 `0x006d44e0(element, 0)` 在 `content+0xd0` 处铸造 40040 元素，而 `0x010c0000..0x010e0000` 范围内没有任何代码会写入它。
+阶段为 `element+0xac`（`0xd0 + 0xac = 0x17c`）：注册器在 `content+0xd0` 以 `0x006d44e0(element, 0)` 创建 40040 元素，`0x010c0000..0x010e0000` 内无指令写入该字段。
 
-它只在 `0x006d4ca0`（元素更新 `0x006d4b80` 的尾部）中推进：一旦共享值 `0x006d3260([element+0xf0])`（无值时为 `0xfc18`）被发布为本站自己的低半部分，阶段就变成该共享值，并通知内容。
+阶段仅在 `0x006d4ca0`（元素更新 `0x006d4b80` 的尾部）推进：一旦共享值 `0x006d3260([element+0xf0])`（无值时为 `0xfc18`）作为站点自身的低半字被发布，阶段即变为该共享值，并通知 content。
 
-`0x018407f0` 在承载 Pia 网格的控制台上为真（[会话](swsh_session.md#the-pia-session-object)）。只有它会初始化共享值——`+0xf0` 通道的 16 位子元素（[子元素种类](swsh_protocol.md#sub-element-kinds)）；每个站点都会采用该值。内容发送的其他形态见[下文](#shapes-the-confirmation-content-also-sends)：
+`0x018407f0` 在主机 Pia 的 mesh（[会话](swsh_session.md#the-pia-session-object)）上为真。只有它播种共享值，即 `+0xf0` 通道的 16 位子元素（[子元素种类](swsh_protocol.md#sub-element-kinds)）；每个站点采纳它。content 发送的其他形状见[下文](#shapes-the-confirmation-content-also-sends)：
 
-    0x006d3260  read            ready [sub+0x61] ? [sub+0x88] : 0xfc18
-    0x006d33b0  write(v)        0x006d3570 when not ready or body != v
-    0x006d3570  publish         body [sub+0x88] = v and queue it per station
-    0x006d3060  all high == v   every pair's [sub+0x8a] == v
+    0x006d3260  读取            ready [sub+0x61] ? [sub+0x88] : 0xfc18
+    0x006d33b0  写入(v)         未就绪或 body != v 时调用 0x006d3570
+    0x006d3570  发布            body [sub+0x88] = v 并按站点入队
+    0x006d3060  全部高半字 == v  每对的 [sub+0x8a] == v
 
-写入不会触碰 ready 字节（只有接收函数 `0x006d6a08` 会存储 `+0x60`），因此读取会返回 `0xfc18`，直到有消息到达；在主机上，那条消息就是它自己的消息。
+写入不改动 ready 字节（仅接收 `0x006d6a08` 写 `+0x60`），因此收到消息前读取返回 `0xfc18`；对主机而言该消息即自身发出的。
 
-### 步骤消息体
+### 步骤体
 
-内容 40 的 elementId 20000 上的四字节消息体：低半部分是阶段，高半部分是最后宣告的值：
+content 40 的 elementId 20000 上的四字节 body，低半字为阶段，高半字为上次宣布：
 
-    0x006d3980(channel, v)   body = <u16 v><u16 [sub+0x8a]>    low; from the element update
-    0x006d3690(channel, v)   body = <u16 [sub+0x88]><u16 v>    high; from pump state 4, [content+0x86]
+    0x006d3980(channel, v)   body = <u16 v><u16 [sub+0x88]>    低半字；来自元素更新
+    0x006d3690(channel, v)   body = <u16 [sub+0x88]><u16 v>    高半字；来自泵状态 4，[content+0x86]
 
-观察到的梯子：
+观测到的阶梯：
 
-    000018fc   phase 0, announced 0xfc18   the birth sentinel
-    00000100   phase 0, announced 1        the cue; command 0 already sent
-    01000100   phase 1, announced 1        caught up, committed
-    01000200   phase 1, announced 2        state 3 sent command 1
-    02000200   phase 2, announced 2        caught up
-    02000300   phase 2, announced 3        committed, sent command 2
-    04000400   phase 4                     the teardown rung
+    000018fc   phase 0, announced 0xfc18   出生哨兵
+    00000100   phase 0, announced 1        提示；命令 0 已发送
+    01000100   phase 1, announced 1        追上，已提交
+    01000200   phase 1, announced 2        状态 3 发送命令 1
+    02000200   phase 2, announced 2        追上
+    02000300   phase 2, announced 3        已提交，发送命令 2
+    04000400   phase 4                     拆除阶梯
 
-`trade.parse_sync_step`、`SYNC_LADDER` 和 `sync_announced_phase` 会解码它。
+`trade.parse_sync_step`、`SYNC_LADDER` 和 `sync_announced_phase` 可解码它。
 
 ### 命令
 
-`SyncSaveDataHolder{syncCommand{data:N}}` 位于 10040，可靠端口 0。处理函数 `0x010dbc90` 会丢弃 `0x006b5850` 无法解析的发送方（`0xfd`），将 `[arg1+0x14]` 处的 int32 传给中继 `0x010dbe20`，然后总是对 `[content+0x2a0]` 调用 `0x006a24a0(obj, sender, 1)`（`0x010dbdf8..0x010dbe08`）：梯子从不读取该值，所以任何命令都会推进一级。状态只通过 `0x010dbf40` 移动，该函数由泵以自己的阶段调用。
+10040 上的 `SyncSaveDataHolder{syncCommand{data:N}}`，可靠端口 0。处理器 `0x010dbc90` 丢弃 `0x006b5850` 无法解析的发送者 (`0xfd`)，将 `[arg1+0x14]` 处的 int32 传给中继 `0x010dbe20`，随后总在 `[content+0x2a0]` (`0x010dbdf8..0x010dbe08`) 上调用 `0x006a24a0(obj, sender, 1)`：该值从未被阶梯读取，因此任何命令都能推进一级。状态仅通过 `0x010dbf40` 移动，由泵以自身阶段调用。
 
-`[content+0x2a0]` 是每站点标志位图（`0x006a24a0` 设置，`0x006a2840` 在列出的每个站点都已设置时为 1，`0x006a2760` 清除）；状态 8 等待它和提交，状态 11 清除它。该标志在网络更新的排空阶段 `0x006db3b0` 中设置，帧函数 `0x00f1df30` 会在游戏更新前后各运行一次它。内容 40 的命令 tick `0x010dae70` 在两次排空之间运行。
+`[content+0x2a0]` 为每站点标志图（`0x006a24a0` 置位，`0x006a2840` 在所有列出站点均置位时为 1，`0x006a2760` 清除）；状态 8 等待它与提交，状态 11 清除它。标志在网络更新的排空 `0x006db3b0` 中置位，帧 `0x00f1df30` 在游戏更新前后各运行一次排空。Content 40 的命令 tick `0x010dae70` 运行于两次排空之间。
 
-一级需要一条命令在上一次提交之后到达主机。在第 0 级，任何命令都算数，包括 cue `00000100` 上的那条；之后，cue 上的命令（`01000200`、`02000300`、`03000400`）会在提交之前到达并被清除，而 caught-up 消息体上的命令（`01000100`、`02000200`、`03000300`）算数：
+一级阶梯需一个命令在上次提交后到达主机。第 0 级任何命令均计数，包括提示 `00000100` 上的命令；后续提示上的命令（`01000200`、`02000300`、`03000400`）在提交前到达并被清除，追上 body 上的命令（`01000100`、`02000200`、`03000300`）计数：
 
-| 命令，每个新消息体一条 | 最后的消息体 |
+| 每个新 body 的命令 | 最后的 body |
 |---|---|
 | 1，在 `00000100` 上 | `01000200`：第 0 级 |
-| 4，`000018fc` 到 `01000200` | `02000300`：第 0 和第 1 级 |
-| 9，`000018fc` 到 `04000400` | `04000400`：交换 |
+| 4，`000018fc` 到 `01000200` | `02000300`：第 0、1 级 |
+| 9，`000018fc` 到 `04000400` | `04000400`：完成交换 |
 
-`--confirm-commands 0,1,2,3,0,1,2,3,0,1,2,3` 会在每个新消息体（包括 `000018fc`）弹出一个；队列不能耗尽。`answer_rpc` 会回显消息体且两半都不移动；`--confirm-phase N` 写入低半部分。
+`--confirm-commands 0,1,2,3,0,1,2,3,0,1,2,3` 每个新 body 弹出一个，包含 `000018fc`；队列不得耗尽。`answer_rpc` 回显 body 且不移动任何半字；`--confirm-phase N` 写入低半字。
 
-### 取消和继续消息
+### 取消与继续消息
 
-30040，即 `SequenceDataHolder`（[协议页](swsh_protocol.md#the-30000-holder)），存储在 `[content+0x2b8]`，监听器为 `content+0x68`（vtable `0x02580030`）：
+30040，即 `SequenceDataHolder`（[协议页](swsh_protocol.md#the-30000-holder)），存储于 `[content+0x2b8]`，监听器为 `content+0x68`（vtable `0x02580030`）：
 
-| 分支 | 消息 | 处理函数 |
+| case | 消息 | 处理器 |
 |---|---|---|
 | 1 | CancelAccepted | `0x010dce70` |
 | 2 | RequestCancel | `0x010dc920` |
 | 3 | RequestCancelAll | `0x010dcaa0` |
 | 4 | RequestForcedProceed | `0x010dc7b0` |
 
-每个动作仅在 `currentSeqNo` 等于已提交阶段 `(s16)[content+0x84]` 时生效。RequestCancel 用 `CancelAccepted{[+0x84], isForced: 0}` 回应发送方并清除其标志；RequestCancelAll 用 `isForced: 1` 回应列出的每个站点并清除每个标志。CancelAccepted 重新运行状态 2 到 4 并保留阶段。RequestForcedProceed（作业 `0x010dd040`）写入 `0x006d33b0([content+0x1c0], targetSeqNo)`，这是状态 10 的写入，但没有状态 8 和 9，也没有主机测试。
+仅当 `currentSeqNo` 等于已提交阶段 `(s16)[content+0x84]` 时生效。RequestCancel 向发送者回复 `CancelAccepted{[+0x84], isForced: 0}` 并清除其标志；RequestCancelAll 向所有列出站点回复 `isForced: 1` 并清除所有标志。CancelAccepted 重跑状态 2 到 4 并保留阶段。RequestForcedProceed（作业 `0x010dd040`）写入 `0x006d33b0([content+0x1c0], targetSeqNo)`，即状态 10 的写入，但无状态 8、9 及主机测试。
 
-RequestForcedProceed 会在没有 `syncCommand` 的情况下推进共享阶段（模拟《盾》）。后继命令为这些请求的梯子会在保存前停在 “Communicating”。
+RequestForcedProceed 无需 `syncCommand` 即可推进共享阶段（模拟 盾）。后续命令均为此请求的阶梯会在存档前停留于 "Communicating"。
 
-### 确认内容也会发送的形态
+### 确认内容同时发送的形状
 
-40040 信封没有 `ownerId`，消息体也不是四字节：
+无 ownerId 且 body 非四字节的 40040 信封：
 
-    elementId 20000, no owner, 2 bytes   0000   then   0100
-    elementId 1,     no owner, 4 bytes   00000000        after a syncCommand{data:0}
-    no elementId,    no owner, 4 bytes   00000000  then  01000000
+    elementId 20000, 无 owner, 2 字节   0000   然后   0100
+    elementId 1,     无 owner, 4 字节   00000000        在 syncCommand{data:0} 后
+    无 elementId,    无 owner, 4 字节   00000000  然后  01000000
 
-配对的接收函数 `0x006d6490` 会丢弃两字节的那些（`cmp x2,#4`）；它们就是共享值（[阶段就是元素的字段](#the-phase-is-the-elements-field)）。
+对对的接收 `0x006d6490` 丢弃两字节体（`cmp x2,#4`）；它们即共享值（[阶段即元素的字段](#the-phase-is-the-elements-field)）。
 
 ## 联盟卡
 
-交换完成后，每台主机都会询问是否保留对方的联盟卡，即其快照 0x924 处的 TrainerCard（[协议](swsh_protocol.md#the-party-payload-on-protocol-0x84)）；回答不会发送任何内容。
+交换后每台主机询问是否保留对方的联盟卡，即其快照 0x924 处的 TrainerCard（[协议](swsh_protocol.md#the-party-payload-on-protocol-0x84)）；回答不发送任何内容。
 
-Oui 将其原样存入存档块 `0x28e707f5`：从 `album+0x230` 开始的 300 个大小为 0x1d0 的槽位，在 `+0x1c8` 非零时为空闲（`0x013fbab0` 填充第一个空闲槽；`0x013fbc00` 在所有槽位都已使用时返回 1）。
+选择“是”将其原样存入存档块 `0x28e707f5`：从 `album+0x230` 开始共 300 个槽位，每槽 `0x1d0`，`+0x1c8` 非零时为空闲（`0x013fbab0` 填入首个空闲槽；`0x013fbc00` 全用时返回 1）。
 
-`0x013fbc40(album, card)` 会在某个已用槽位与卡片 0x1C 处的 u32 以及 0x1A8 处的八个字节匹配时跳过提问。0x1C 是 PKHeX 的 `TrainerCard8.TrainerID`，即 `(SID << 16 | TID) mod 10**6`；0x1A8 是 `TimestampPrinted`，一个 Unix 时间。面对模拟的《盾》时，更改训练家 ID 或更改 0x1A8 处的某个字节会再次询问并存下第二个槽位；更改宝可梦图鉴计数或名称则不会。`pokeldn.swsh.league_card` 会映射一个 u32；`trade_payload.rewrite` 设置训练家 ID。
+`0x013fbc40(album, card)` 在已用槽位匹配卡片 0x1C 处的 u32 与 0x1A8 处的八字节时跳过询问。0x1C 为 PKHeX `TrainerCard8.TrainerID`，即 `(SID << 16 | TID) mod 10**6`；0x1A8 为 `TimestampPrinted`，Unix 时间。对模拟 盾，更改训练师 ID 或 0x1A8 处字节会再次询问并占用第二个槽位；更改图鉴计数或姓名则不会。
+`pokeldn.swsh.league_card` 映射一个 u32；`trade_payload.rewrite` 设置训练师 ID。
 
-零售版《剑》会绘制接收日期、`game`（0x24）的标志、0x39 处的三个 ASCII 字节、`dex_complete`（0x30）时的洛托姆图鉴王冠，以及七个星格中的 `count + 1` 个，其中 `count = card[0x177] + (card[0x1b6] != 0) + (card[0x1b7] != 0)`。构建器 `0x0158eef0` 从存档填写 0x177（`DesignLevel`：有 `FSYS_GAME_CLEAR` 时为 4，否则徽章数 > 6、> 3、> 0、0 时分别为 3、2、1、0）、0x1B1（`FSYS_SEED_CHALLENGE`）、0x1B3（`FSYS_INPUT_SHIRT_NUMBER`）以及星星 0x1B6、0x1B7（`FSYS_R1_GAME_CLEAR`、`FSYS_R2_GAME_CLEAR`）；标志键是名称的 FNV-1a 64 位（[协议](swsh_protocol.md#the-player-profile)）。
+零售 会绘制接收日期、`game`（0x24）的徽标、0x39 处的三个 ASCII 字节、`dex_complete`（0x30）对应的洛托姆图鉴皇冠，以及 `count + 1` 个七星窗格，其中 `count = card[0x177] + (card[0x1b6] != 0) + (card[0x1b7] != 0)`。构建器 `0x0158eef0` 从存档填充 0x177（`DesignLevel`：有 `FSYS_GAME_CLEAR` 则为 4，否则按徽章 >6、>3、>0、0 分别为 3、2、1、0）、0x1B1（`FSYS_SEED_CHALLENGE`）、0x1B3（`FSYS_INPUT_SHIRT_NUMBER`）及星星 0x1B6、0x1B7（`FSYS_R1_GAME_CLEAR`、`FSYS_R2_GAME_CLEAR`）；标志键为名称的 FNV-1a 64（[协议](swsh_protocol.md#the-player-profile)）。
 
-`0x0158f5e0` 会拒绝一张卡片（DesignLevel 5、language 6、GlossIndex 9），该卡片会被替换为默认卡。`bin/swsh_host.py --card-set FIELD=VALUE` 编辑发送的卡片（`pokeldn.swsh.league_card` 字段）；全新的 `trainer_id` 会让主机再次询问。
+`0x0158f5e0` 拒绝卡片（DesignLevel 5、language 6、GlossIndex 9），并用默认卡替换。`bin/swsh_host.py --card-set FIELD=VALUE` 编辑发送的卡（`pokeldn.swsh.league_card` 字段）；全新的 `trainer_id` 会让主机再次询问。
 
 ## 提供的记录
 
-在 20030 上提供的记录是快照的队伍槽位 `--offer-slot`，在原位编辑，因此显示的队伍与提供内容一致；身份重写首先运行，`party_matches_trainer` 成立。`pokeldn.swsh.pokemon.build_from` 会重写校验和，在新的加密常量下重新打乱，并保留每个未命名字节。一只构建的皮卡丘交换到零售版《剑》再换回后，等级、性格、特性、性别、球种、携带物品、个体值和基础点数均保持不变，并通过 PKHeX 合法性检查。
+20030 上的提供是快照的队伍栏位 `--offer-slot`，原地编辑，因此显示的队伍与提供一致；身份重写先运行且 `party_matches_trainer` 成立。
+`pokeldn.swsh.pokemon.build_from` 重写校验和，在新加密常数下重新打乱，并保留所有未命名字节。构建的皮卡丘经零售版《剑》交换再交回，等级、性格、特性、性别、球、携带道具、个体值和努力值均保留，并通过 PKHeX 合法性检查。
 
-法语版《剑》1.3.2 在四次交换中接受了其存档已经持有的记录（相同 PID 和 EC）。《盾》1.3.2 在读取路径上没有重复检查：PID 和加密常量 getter 不会走到盒子遍历，盒子代码只读取物种和蛋标志。晶灿钻石在 PK8 字节 0x52 的非法标志没有访问器读取（[BDSP 交换页面](bdsp_trade.md#duplicate-detection)）。
-在 `bin/swsh_host.py` 和 `bin/swsh_connect.py` 上的 `--fresh-pid` 会生成新的加密常量和 PID。
+法语版《剑》 1.3.2 在四次交换中均接受其存档已持有的记录（相同 PID 与 EC）。
+《盾》 1.3.2 在读取路径上无重复检查：PID 与加密常数取值器未遍历箱子，箱子代码仅读取种类与蛋标志。《晶灿钻石》 PK8 字节 0x52 的非法标志未被任何访问器读取（见 [BDSP 交换页](bdsp_trade.md#duplicate-detection)）。
+`bin/swsh_host.py` 与 `bin/swsh_connect.py` 上的 `--fresh-pid` 抽取新的加密常数与 PID。
 
     --offer-slot 1 --offer-nickname POKELDN --offer-ivs 31,31,31,31,31,31
 
-| 标志 | 效果 |
+| 标志 | 作用 |
 |---|---|
-| `--offer-nickname`, `--offer-ot` | 26 字节 UTF-16 字段，最多 12 个字符；昵称会设置昵称标志，否则将采用物种名称 |
-| `--offer-species` | 仅物种字；其他一切保持模板不变 |
-| `--offer-ability ID`, `--offer-moves A,B,C,D` | 这两个字段；PP 和回忆招式保持不变 |
-| `--offer-level N` | 位于 0x148 的等级字节 |
-| `--offer-experience N` | 位于 0x10 的经验值字 |
-| `--offer-ivs` | 六项个体值 |
-| `--offer-file FILE` | 四种形态中的任意一种 `.pk8`（存储或队伍、加密或 PKHeX 解密导出，通过头部校验和区分）；初训家名称和 ID 移到快照的训练家 |
-| `--offer-file-as-is` | 保留文件中的初训家 |
-| `--save-offer FILE` | 在操作无线电之前写入构建的记录 |
+| `--offer-nickname`, `--offer-ot` | 26 字节 UTF-16 字段，最多 12 字符；昵称设置 nicknamed 标志，否则使用种类名 |
+| `--offer-species` | 仅种类字；其余保留模板值 |
+| `--offer-ability ID`, `--offer-moves A,B,C,D` | 两字段；PP 与回忆招式保留 |
+| `--offer-level N` | 0x148 处的等级字节 |
+| `--offer-experience N` | 0x10 处的经验值字 |
+| `--offer-ivs` | 六个个体值 |
+| `--offer-file FILE` | 任意四种形态之一的 `.pk8`（存放格式或队伍格式、加密或 PKHeX 解密导出，按头部校验和区分），自带原训练家 |
+| `--receiver-owns N` | 第 N 个 `--offer-file` 置于主机实时快照的训练家名下（[原训练家](gui.md#original-trainer)） |
+| `--save-offer FILE` | 在触碰无线电前写出构建好的记录 |
 
-法语版《剑》1.3.2 不检查特性或招式是否与物种匹配，会从经验值字（0x10）取等级，并根据个体值、基础点数、性格和极限特训（0x126）重建能力值；将初训家 ID 显示为 `(SID << 16 | TID) mod 1000000`，不将任何初训家 ID 与 MyStatus 比较，并将 PID 高半部分 `low ^ TID ^ SID` 显示为异色。没有数据的物种（152）会以皮卡丘的模型、黑色精灵球图标和零基础种族值存储。
+法语版《剑》 1.3.2 不校验特性或招式与种类的对应，从经验值字（0x10）取等级并按个体值、努力值、性格与超级训练（0x126）重算能力值，显示 OT ID 为 `(SID << 16 | TID) mod 1000000`，不与 MyStatus 比对任何 OT ID，以 `low ^ TID ^ SID` 的 PID 高半部判定异色。无数据的种类（152）以皮卡丘模型、黑色精灵球图标与零基础点存储。
 
-尚未解决：其他缺失物种会显示什么，以及名称是来自名称字段还是一次失败的查找。
+未决：其他缺失种类会绘制什么，以及名称是名称字段还是查找失败的结果。
 
-## 已完成交换的命令行
+## 完成交换的命令行
 
-`swsh_connect.py --preset trade` 带有交换所需的标志；在其后给出的标志会覆盖预设。当主机正在搜索本地连接交换时（Y-Comm、连接交换、本地，两条消息都按 A）：
+`swsh_connect.py --preset trade` 携带交换所需标志；其后给出的标志覆盖预设。在主机搜索本地连接交换（Y-Comm、连接交换、本地、两边均按 A 确认）时：
 
     POKELDN_RADIO=esp32:auto ./.venv/bin/python -u bin/swsh_connect.py --keys PROD_KEYS \
         --preset trade --save-offered offered.pk8 --capture trade.jsonl
 
-发回的快照是同一会话中主机自己的快照（`--send-snapshot live`，预设默认值）：三个 0x84 片段被重新组装，训练家名称、TID 和 SID 被重写为 `--snapshot-name/-tid/-sid`，并在主机的快照重新组装完成后发出。`--send-snapshot FILE` 改为发送已保存的 3456 字节载荷（`--preset capture`，然后运行 `tools/switch/swsh_snapshot.py` 写出一个）。
+回传的快照为主机同一会话的自身快照（`--send-snapshot live`，预设默认）：三个 0x84 片段重组，训练家名、TID 与 SID 改写为 `--snapshot-name/-tid/-sid`，在主机快照重组完成后发出一次。
+`--send-snapshot FILE` 改为发送已保存的 3456 字节载荷（`--preset capture`，再经 `tools/switch/swsh_snapshot.py` 写出）。
 
-`--offer-file FILE` 将一个 `.pk8` 放入提供的队伍槽位。重复使用时，它会在会话中为每次交换排队一条记录；最后一条会用于之后每次交换，在 `--fresh-pid` 下使用新 PID，并且第 N 次交换会在其阶梯结束后用 `-N` 写出 `--save-offered`；主机撤回的报价不会写出任何内容。若主机已提供某次交换且其阶梯尚未结束，会话最多会在 `--hold` 之后再保持 `--grace` 秒（300）。没有队伍能力值的存储格式记录可以交换；主机会根据经验值计算等级。
+`--offer-file FILE` 将一条 `.pk8` 放入提供队伍栏位。重复使用时，按会话为每次交换排队一条记录；最后一条服务于此后所有交换，配合 `--fresh-pid` 使用新 PID，交换 N 在其阶梯结束后将 `--save-offered` 带 `-N` 写出；主机撤回的提供不写入文件。主机已提供但阶梯未结束的交换，将挂起会话至 `--hold` 后最多 `--grace` 秒（300 秒）。任一启动器上的 `--hold-after-trade SECONDS` 在最后一笔排队交换后延长运行该秒数（[离开](swsh_session.md#leaving)）。无队伍能力值的存放格式记录可交换；主机按经验值计算等级。
 
-## 惩罚，以及干净地结束一次运行
+## 惩罚，与干净地结束运行
 
-链接仍活动时交换超时属于失败的交换，并会锁定主机，使其无法再进行交换（`msg_ui_live_comm_app_alert_00`，`/bin/message/French/common/live_comm.dat` 的第 331 行）；锁定的时长无法读取。在保存期间于 `04000400` 之后 15 秒切断链接，会显示通信错误 `2-ALZAA-0016`，不会触发交换锁定，并会立即开始新的本地搜索。
+链路存活时交换超时视为失败交换，主机被锁定无法交易（`msg_ui_live_comm_app_alert_00`，`/bin/message/French/common/live_comm.dat` 第 331 行）；锁定时长不可读。
+在 `04000400` 后 15 秒、存档过程中切断链路，显示通信错误 `2-ALZAA-0016`，不触发交易锁定，并立即开始新的本地搜索。
 
-`bin/swsh_connect.py --abort-on-stall SECONDS` 会在阶梯已开始且经过 SECONDS 秒仍没有新正文时断开链接。它会在第 4 阶段（静默拆除梯级）退出（`stall_abort()`、`final_phase_seen`、`LADDER_FINAL_PHASE`），因此链接绝不会在保存期间被切断。
+`bin/swsh_connect.py --abort-on-stall SECONDS` 在阶梯启动后若 SECONDS 秒内无新主体则切断链路。它在第 4 阶段（静默拆除阶、`stall_abort()`、`final_phase_seen`、`LADDER_FINAL_PHASE`）退让，因此链路绝不在存档期间被切断。
 
-## 验证已完成的交换
+## 验证完成的交换
 
-收到的宝可梦在 0xC4 处带有 `CurrentHandler` 1，并在 0xA8 处的 `HandlingTrainerName` 中带有接收者名称，覆盖发送者的原训练家。`--offer-echo` 会将主机自己的记录返回，因此只有物种不同才能证明发生了转移。
+接收到的宝可梦在 0xC4 携带 `CurrentHandler` 1，在 0xA8 的 `HandlingTrainerName` 中记录接收方姓名，覆盖发送方的原训练家。`--offer-echo` 将主机自身记录回传，因此仅当种类不同才能证明发生了转移。
